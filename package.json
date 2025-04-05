@@ -9,9 +9,9 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "vite": "^5.0.0" // 使用较新的 Vite 版本
+    "vite": "^5.0.0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0" // 使用 Supabase V2 库
+    "@supabase/supabase-js": "^2.0.0"
   }
 }
