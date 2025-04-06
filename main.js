@@ -520,85 +520,229 @@ if (supabase && editorContainer) { // Check if editor container exists
     // 1. Initialize Quill Editor
     quillEditor = new Quill('#editor-container', {
         modules: {
-            toolbar: [ // Basic toolbar options
+            toolbar: [ // Basic toolbar options (image handler added later)
                 [{ header: [1, 2, false] }],
                 ['bold', 'italic', 'underline'],
-                ['image', 'code-block'], // Add image button
+                ['image', 'code-block'],
                 [{ list: 'ordered'}, { list: 'bullet' }]
-            ]
+            ],
+            clipboard: {
+                // Enhance paste handling for images
+                matchers: [
+                    // Matcher for <img> tags
+                    ['img', (node, delta) => {
+                        const src = node.getAttribute('src');
+                        console.log('Pasted image src:', src);
+
+                        // Handle Base64 images
+                        if (src && src.startsWith('data:image/')) {
+                            console.log('Attempting to upload pasted Base64 image...');
+                            // Convert Base64 to Blob/File
+                            const blob = base64ToBlob(src);
+                            if (blob) {
+                                // Create a unique filename
+                                const fileName = `pasted-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+                                const file = new File([blob], fileName, { type: blob.type });
+
+                                // Reuse upload logic (needs slight refactoring or direct call)
+                                // For simplicity here, we trigger upload directly.
+                                // Ideally, refactor upload logic into a reusable function.
+                                uploadPastedImage(file).then(imageUrl => {
+                                    if (imageUrl) {
+                                         // Return a Delta to insert the uploaded image URL
+                                         // We replace the entire original Delta op for the image
+                                         // This assumes the pasted image was a single op, which is usually true
+                                        delta.ops = [{ insert: { image: imageUrl } }];
+                                    } else {
+                                        console.warn("Pasted Base64 image upload failed, keeping original (potentially broken) src.");
+                                         // Keep original delta if upload fails
+                                    }
+                                }).catch(err => {
+                                    console.error("Error processing pasted Base64 image:", err);
+                                     // Keep original delta on error
+                                });
+                                // Important: Return the delta immediately. The promise above
+                                // will modify its 'ops' property later if upload succeeds.
+                                return delta;
+                            } else {
+                                 console.warn("Could not convert pasted Base64 src to Blob.");
+                                 return delta; // Keep original if conversion fails
+                            }
+                        }
+                        // Handle Blob URLs (less common for cross-app paste, but good to have)
+                        else if (src && src.startsWith('blob:')) {
+                             console.log('Attempting to upload pasted Blob image...');
+                             // Fetch the blob data
+                             fetch(src)
+                                .then(res => res.blob())
+                                .then(blob => {
+                                    if (blob) {
+                                        const fileName = `pasted-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+                                        const file = new File([blob], fileName, { type: blob.type });
+                                        return uploadPastedImage(file);
+                                    }
+                                    return null;
+                                })
+                                .then(imageUrl => {
+                                     if (imageUrl) {
+                                        delta.ops = [{ insert: { image: imageUrl } }];
+                                    } else {
+                                        console.warn("Pasted Blob image upload failed, keeping original src.");
+                                    }
+                                })
+                                .catch(err => {
+                                     console.error("Error processing pasted Blob image:", err);
+                                });
+                               return delta; // Return delta immediately
+                        }
+                        // Otherwise, let Quill handle it (e.g., http/https URLs)
+                        else {
+                            console.log('Letting Quill handle non-data/blob image src:', src);
+                            return delta;
+                        }
+                    }]
+                ]
+            }
         },
         placeholder: 'Paste or type content here...',
         theme: 'snow' // 'snow' is a standard theme with toolbar
     });
-    console.log("Quill editor initialized.");
+    console.log("Quill editor initialized with clipboard matcher.");
 
-    // --- Quill Image Handler ---
+
+    // --- Custom Paste Handler ---
+    quillEditor.root.addEventListener('paste', async (event) => {
+        console.log('Paste event detected.');
+        try {
+            const items = await navigator.clipboard.read();
+            let imageBlob = null;
+
+            for (const item of items) {
+                const imageType = item.types.find(type => type.startsWith('image/'));
+                if (imageType) {
+                    console.log('Direct image data found on clipboard.');
+                    imageBlob = await item.getType(imageType);
+                    break; // Found an image, prioritize it
+                }
+            }
+
+            if (imageBlob) {
+                console.log('Processing direct image paste.');
+                event.preventDefault(); // IMPORTANT: Prevent Quill's default paste only if we handle it
+
+                const file = new File([imageBlob], `pasted-${Date.now()}.${imageBlob.type.split('/')[1] || 'png'}`, { type: imageBlob.type });
+                const originalRange = quillEditor.getSelection(true);
+                const imageUrl = await uploadImageFile(file); // Use the reusable uploader
+
+                if (imageUrl) {
+                    quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
+                    quillEditor.setSelection(originalRange.index + 1);
+                    statusElement.textContent = 'Pasted image uploaded and inserted.';
+                    console.log('Successfully handled direct image paste.');
+                } else {
+                     statusElement.textContent = 'Failed to upload pasted image.';
+                     console.error('Pasted image upload failed.');
+                     // Maybe allow default paste as fallback? Or show error?
+                }
+                return; // Stop processing this paste event further
+            } else {
+                 console.log('No direct image data found, allowing Quill default paste.');
+                 // Let Quill's default paste (and our matchers) handle it
+            }
+
+        } catch (err) {
+            console.error('Error reading clipboard:', err);
+             // Let Quill's default paste handle it if clipboard reading fails
+        }
+    });
+
+
+     // --- Helper: Base64 to Blob ---
+    function base64ToBlob(base64) {
+        try {
+            const parts = base64.split(';base64,');
+            const contentType = parts[0].split(':')[1];
+            const raw = window.atob(parts[1]);
+            const rawLength = raw.length;
+            const uInt8Array = new Uint8Array(rawLength);
+            for (let i = 0; i < rawLength; ++i) {
+                uInt8Array[i] = raw.charCodeAt(i);
+            }
+            return new Blob([uInt8Array], { type: contentType });
+        } catch (e) {
+            console.error("Error converting Base64 to Blob:", e);
+            return null;
+        }
+    }
+
+     // --- Reusable Image Upload Logic ---
+     // Takes a File object, returns Promise<string | null> (the image URL or null on failure)
+    async function uploadImageFile(file) {
+         if (!file || !supabase) {
+            console.log("No file provided or Supabase not ready for upload.");
+            return null;
+        }
+         statusElement.textContent = 'Uploading image...';
+         try {
+            const fileName = `${Date.now()}-${file.name}`;
+            const filePath = `public/${fileName}`;
+            const bucketName = 'clipboard-media';
+
+            const { error: uploadError } = await supabase.storage
+                .from(bucketName)
+                .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+            if (uploadError) throw uploadError;
+
+            const { data: urlData, error: urlError } = supabase.storage
+                .from(bucketName)
+                .getPublicUrl(filePath);
+
+            if (urlError) throw urlError;
+            if (!urlData || !urlData.publicUrl) throw new Error("Failed to get public URL.");
+
+            const imageUrl = urlData.publicUrl;
+            console.log('Image uploaded successfully:', imageUrl);
+            statusElement.textContent = 'Image uploaded.';
+            return imageUrl;
+
+        } catch (error) {
+            console.error('Image upload failed:', error);
+            statusElement.textContent = `Image upload failed: ${error.message}`;
+            return null; // Indicate failure
+        }
+    }
+
+     // --- Specific handler for pasted images ---
+     // Returns Promise resolving to URL or null
+     async function uploadPastedImage(file) {
+        // We can add specific logic here if needed, but for now, just reuse the main uploader
+        return await uploadImageFile(file);
+     }
+
+
+    // --- Quill Image Handler (for toolbar button) ---
     async function imageHandler() {
         const input = document.createElement('input');
-        input.setAttribute('type', 'file');
+         input.setAttribute('type', 'file');
         input.setAttribute('accept', 'image/*');
         input.click();
 
         input.onchange = async () => {
-            const file = input.files[0];
-            if (!file || !supabase) {
-                console.log("No file selected or Supabase not ready.");
-                return;
-            }
+             const file = input.files[0];
+             const originalRange = quillEditor.getSelection(true); // Save cursor position
 
-            // Show uploading status
-            statusElement.textContent = 'Uploading image...';
-            const originalRange = quillEditor.getSelection(true); // Save cursor position
+             const imageUrl = await uploadImageFile(file); // Use the reusable uploader
 
-            try {
-                // Create a unique file path (e.g., using timestamp and original filename)
-                const fileName = `${Date.now()}-${file.name}`;
-                const filePath = `public/${fileName}`; // Store in a 'public' folder within the bucket
-                const bucketName = 'clipboard-media'; // Use the correct bucket name
-
-                // Upload file to Supabase Storage
-                // Removed unused 'data: uploadData' assignment
-                const { error: uploadError } = await supabase.storage
-                    .from(bucketName) // Use variable for bucket name
-                    .upload(filePath, file, {
-                        cacheControl: '3600', // Optional: Cache control
-                        upsert: false // Optional: Don't overwrite existing files with same name
-                    });
-
-                if (uploadError) {
-                    throw uploadError;
-                }
-
-                // Get the public URL of the uploaded file
-                const { data: urlData, error: urlError } = supabase.storage
-                    .from(bucketName) // Use variable for bucket name
-                    .getPublicUrl(filePath); // Use the exact path used for upload
-
-                 if (urlError) {
-                    throw urlError;
-                }
-
-                if (!urlData || !urlData.publicUrl) {
-                     throw new Error("Failed to get public URL after upload.");
-                 }
-
-                const imageUrl = urlData.publicUrl;
-                console.log('Image uploaded successfully:', imageUrl);
-
-                // Insert image into Quill editor at the original cursor position
-                quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
-                quillEditor.setSelection(originalRange.index + 1); // Move cursor after image
-
-                statusElement.textContent = 'Image uploaded and inserted.';
-
-            } catch (error) {
-                console.error('Image upload failed:', error);
-                statusElement.textContent = `Image upload failed: ${error.message}`;
-            } finally {
-                 // Reset file input (important for selecting the same file again)
-                input.value = '';
-            }
-        };
+             if (imageUrl) {
+                 // Insert image into Quill editor at the original cursor position
+                 quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
+                 quillEditor.setSelection(originalRange.index + 1); // Move cursor after image
+                 statusElement.textContent = 'Image uploaded and inserted.';
+             }
+             // Reset file input
+             input.value = '';
+         };
     }
 
      // Bind the image handler to the Quill toolbar
