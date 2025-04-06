@@ -76,19 +76,9 @@ h1, h2 {
     /* margin-bottom: 20px; */ /* Removed margin-bottom here */
 }
 
-#newItemContent {
-    flex-grow: 1; /* Textarea takes available space */
-    min-height: 80px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 1rem;
-    line-height: 1.5;
-    /* margin-right: 10px; */ /* Removed margin-right */
-    margin-bottom: 10px; /* Add margin below textarea */
-    box-sizing: border-box;
-    width: 100%; /* Make textarea take full width */
-}
+/* Remove styles for the old textarea */
+/* #newItemContent { ... } */
+
 
 #addButton {
     padding: 10px 15px;
@@ -253,6 +243,6 @@ h1, h2 {
 
 /* Adjust clipboard item flex alignment */
 .clipboard-item {
-    /* align-items: flex-start; */ /* Keep default */
-    align-items: center; /* Vertically center content and button block */
+    align-items: flex-start; /* Align items to the top */
+    /* align-items: center; */ /* Removed vertical centering */
 }
