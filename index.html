@@ -11,18 +11,25 @@
         <h1>Cloud Clipboard History</h1>
         <p id="status">Connecting...</p>
 
-        <!-- Input area for new items -->
-        <div id="input-area">
-            <textarea id="newItemContent" placeholder="Enter new text here..."></textarea>
-            <button id="addButton">Add Clip</button>
-        </div>
+        <div id="main-layout">
+            <!-- Left Panel: History -->
+            <div id="history-panel">
+                <h2>History (Oldest First)</h2>
+                <!-- Container for the list of clipboard items -->
+                <div id="clipboardList">
+                    <!-- Clipboard items will be loaded here by JavaScript -->
+                </div>
+            </div>
 
-        <hr>
-
-        <h2>History (Oldest First)</h2>
-        <!-- Container for the list of clipboard items -->
-        <div id="clipboardList">
-            <!-- Clipboard items will be loaded here by JavaScript -->
+            <!-- Right Panel: Input -->
+            <div id="input-panel">
+                <h2>Add New Clip</h2>
+                 <!-- Input area for new items -->
+                <div id="input-area">
+                    <textarea id="newItemContent" placeholder="Enter new text here..."></textarea>
+                    <button id="addButton">Add Clip</button>
+                </div>
+            </div>
         </div>
     </div>
     <script type="module" src="/main.js"></script>
