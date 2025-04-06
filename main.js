@@ -554,10 +554,12 @@ if (supabase && editorContainer) { // Check if editor container exists
                 // Create a unique file path (e.g., using timestamp and original filename)
                 const fileName = `${Date.now()}-${file.name}`;
                 const filePath = `public/${fileName}`; // Store in a 'public' folder within the bucket
+                const bucketName = 'clipboard-media'; // Use the correct bucket name
 
                 // Upload file to Supabase Storage
-                const { data: uploadData, error: uploadError } = await supabase.storage
-                    .from('clipboard-media') // Your bucket name
+                // Removed unused 'data: uploadData' assignment
+                const { error: uploadError } = await supabase.storage
+                    .from(bucketName) // Use variable for bucket name
                     .upload(filePath, file, {
                         cacheControl: '3600', // Optional: Cache control
                         upsert: false // Optional: Don't overwrite existing files with same name
@@ -569,7 +571,7 @@ if (supabase && editorContainer) { // Check if editor container exists
 
                 // Get the public URL of the uploaded file
                 const { data: urlData, error: urlError } = supabase.storage
-                    .from('clipboard-media')
+                    .from(bucketName) // Use variable for bucket name
                     .getPublicUrl(filePath); // Use the exact path used for upload
 
                  if (urlError) {
