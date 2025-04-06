@@ -12,11 +12,21 @@ body {
     background-color: #fff;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     border-radius: 8px;
+    /* Remove fixed max-width for full width layout */
+    /* max-width: 800px; */
 }
+
+/* Make app container take more width */
+#app {
+    max-width: 95%; /* Use percentage for responsiveness */
+    margin: 20px auto;
+}
+
 
 h1, h2 {
    text-align: center;
    color: #333;
+   margin-top: 0; /* Adjust top margin for headings */
 }
 
 #status {
@@ -25,13 +35,45 @@ h1, h2 {
     font-style: italic;
     color: #666;
     min-height: 1em; /* Prevent layout shift */
+    margin-bottom: 20px; /* Add margin below status */
 }
 
-/* Input Area Styles */
+/* Main Layout Styles */
+#main-layout {
+    display: flex;
+    gap: 20px; /* Space between panels */
+}
+
+#history-panel {
+    flex: 3; /* Takes 3 parts of the space */
+    /* max-height: calc(100vh - 180px); /* Adjust height based on header/footer/padding */
+    /* A simpler approach might be a fixed height */
+     max-height: 75vh; /* Example: 75% of viewport height */
+    overflow-y: auto; /* Enable vertical scrolling */
+    padding-right: 10px; /* Add some padding if scrollbar appears */
+    border: 1px solid #eee; /* Optional border */
+    padding: 15px;
+    border-radius: 4px;
+    background-color: #fff; /* Match app background */
+}
+
+#input-panel {
+    flex: 2; /* Takes 2 parts of the space */
+    /* Styles for the right panel */
+     border: 1px solid #eee; /* Optional border */
+     padding: 15px;
+     border-radius: 4px;
+     background-color: #fff;
+     /* Ensure it doesn't get too tall if content is minimal */
+     align-self: flex-start;
+}
+
+/* Adjust Input Area within the right panel */
 #input-area {
-    display: flex; /* Arrange textarea and button side-by-side */
-    align-items: flex-start; /* Align items at the top */
-    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column; /* Stack textarea and button vertically now */
+    align-items: stretch; /* Stretch items to full width */
+    /* margin-bottom: 20px; */ /* Removed margin-bottom here */
 }
 
 #newItemContent {
@@ -42,8 +84,10 @@ h1, h2 {
     border-radius: 4px;
     font-size: 1rem;
     line-height: 1.5;
-    margin-right: 10px; /* Space between textarea and button */
+    /* margin-right: 10px; */ /* Removed margin-right */
+    margin-bottom: 10px; /* Add margin below textarea */
     box-sizing: border-box;
+    width: 100%; /* Make textarea take full width */
 }
 
 #addButton {
@@ -54,8 +98,9 @@ h1, h2 {
     color: white;
     border: none;
     border-radius: 4px;
-    height: 40px; /* Match button height roughly */
-    align-self: center; /* Center button vertically if textarea grows */
+    /* height: 40px; */ /* Remove fixed height */
+    /* align-self: center; */ /* Remove align-self */
+    width: 100%; /* Make button take full width */
 }
 
 #addButton:hover {
@@ -67,17 +112,13 @@ h1, h2 {
     cursor: not-allowed;
 }
 
+/* Remove HR styles as it's removed from HTML */
+/* hr { ... } */
 
-hr {
-    border: 0;
-    height: 1px;
-    background: #ddd;
-    margin: 30px 0;
-}
 
-/* Clipboard List Styles */
+/* Clipboard List Styles - Adjust margin */
 #clipboardList {
-    margin-top: 20px;
+    margin-top: 10px; /* Reduced margin */
 }
 
 .clipboard-item {
@@ -108,22 +149,110 @@ hr {
     color: #333;
 }
 
-.clipboard-item .delete-button {
-    padding: 5px 10px;
+/* Container for buttons within an item */
+.clipboard-item .item-buttons {
+    display: flex;
+    flex-direction: column; /* Stack buttons vertically */
+    gap: 5px; /* Space between buttons */
+    flex-shrink: 0; /* Prevent container from shrinking */
+    margin-left: 15px; /* Space between content and buttons */
+}
+
+/* Common styles for item buttons */
+.clipboard-item button {
+     padding: 5px 10px;
     font-size: 0.8rem;
     cursor: pointer;
-    background-color: #dc3545;
     color: white;
     border: none;
     border-radius: 4px;
-    flex-shrink: 0; /* Prevent button from shrinking */
+    min-width: 60px; /* Ensure buttons have a minimum width */
+    text-align: center;
 }
 
-.clipboard-item .delete-button:hover {
+.clipboard-item button:hover {
+    opacity: 0.9;
+}
+
+.clipboard-item button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Edit mode textarea */
+.clipboard-item .edit-textarea {
+    width: 100%; /* Take full width of its container */
+    min-height: 60px; /* Minimum height */
+    box-sizing: border-box; /* Include padding/border in width */
+    border: 1px solid #007bff; /* Highlight when editing */
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    padding: 8px;
+    margin: 0; /* Reset margin */
+}
+
+/* Adjust content container */
+.clipboard-item .item-content-container {
+    flex-grow: 1; /* Allow content area to grow */
+    margin-right: 15px; /* Keep space before buttons */
+}
+
+
+/* Specific button styles */
+.clipboard-item .edit-button {
+    background-color: #ffc107; /* Yellow for edit */
+    color: #333; /* Darker text for yellow */
+}
+.clipboard-item .edit-button:hover:not(:disabled) {
+    background-color: #e0a800;
+}
+
+.clipboard-item .save-button {
+    background-color: #28a745; /* Green for save */
+}
+.clipboard-item .save-button:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.clipboard-item .cancel-button {
+    background-color: #6c757d; /* Gray for cancel */
+}
+.clipboard-item .cancel-button:hover:not(:disabled) {
+    background-color: #5a6268;
+}
+
+
+.clipboard-item .copy-button {
+    background-color: #17a2b8; /* Teal color for copy */
+}
+
+.clipboard-item .copy-button:hover:not(:disabled) {
+    background-color: #138496;
+}
+
+.clipboard-item .delete-button {
+    /* padding: 5px 10px; */ /* Use common style */
+    /* font-size: 0.8rem; */ /* Use common style */
+    /* cursor: pointer; */ /* Use common style */
+    background-color: #dc3545; /* Red color for delete */
+    /* color: white; */ /* Use common style */
+    /* border: none; */ /* Use common style */
+    /* border-radius: 4px; */ /* Use common style */
+    /* flex-shrink: 0; */ /* Moved to container */
+}
+
+.clipboard-item .delete-button:hover:not(:disabled) {
     background-color: #c82333;
 }
 
-.clipboard-item .delete-button:disabled {
-     background-color: #cccccc;
-     cursor: not-allowed;
+/* Disabled state is handled by common style */
+/* .clipboard-item .delete-button:disabled { ... } */
+
+/* Adjust clipboard item flex alignment */
+.clipboard-item {
+    /* align-items: flex-start; */ /* Keep default */
+    align-items: center; /* Vertically center content and button block */
 }
