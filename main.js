@@ -49,9 +49,61 @@ function renderClipboardList(items) {
         itemDiv.className = 'clipboard-item';
         itemDiv.dataset.id = item.id; // Store the item ID on the element
 
-        const contentPre = document.createElement('pre'); // Use <pre> to preserve whitespace/newlines
-        contentPre.textContent = item.content || ''; // Handle potentially null content
+        // --- Content Display ---
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'item-content-container'; // Container for pre or textarea
 
+        const contentPre = document.createElement('pre');
+        contentPre.className = 'item-content';
+        contentPre.textContent = item.content || '';
+        contentContainer.appendChild(contentPre); // Add pre initially
+
+        // --- Buttons ---
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'item-buttons';
+
+        // Create Edit Button
+        const editButton = document.createElement('button');
+        editButton.textContent = 'Edit';
+        editButton.className = 'edit-button';
+
+        // Create Save Button (initially hidden)
+        const saveButton = document.createElement('button');
+        saveButton.textContent = 'Save';
+        saveButton.className = 'save-button';
+        saveButton.style.display = 'none'; // Hide initially
+
+        // Create Cancel Button (initially hidden)
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.className = 'cancel-button';
+        cancelButton.style.display = 'none'; // Hide initially
+
+
+        // Create Copy Button
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy';
+        copyButton.className = 'copy-button';
+        copyButton.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(item.content || '');
+                copyButton.textContent = 'Copied!';
+                copyButton.disabled = true;
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                    copyButton.disabled = false;
+                }, 1500); // Reset after 1.5 seconds
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                // Optionally show an error message to the user
+                copyButton.textContent = 'Error';
+                 setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                }, 1500);
+            }
+        });
+
+        // Create Delete Button
         const deleteButton = document.createElement('button');
         deleteButton.textContent = 'Delete';
         deleteButton.className = 'delete-button';
@@ -65,12 +117,113 @@ function renderClipboardList(items) {
             // e.target.textContent = 'Delete';
         });
 
-        itemDiv.appendChild(contentPre);
-        itemDiv.appendChild(deleteButton);
+        // --- Edit Mode Toggle Logic ---
+        editButton.addEventListener('click', () => {
+            // Show textarea, hide pre
+            contentContainer.innerHTML = ''; // Clear content container
+            const editTextArea = document.createElement('textarea');
+            editTextArea.className = 'edit-textarea';
+            editTextArea.value = item.content || '';
+            contentContainer.appendChild(editTextArea);
+
+            // Toggle button visibility
+            editButton.style.display = 'none';
+            copyButton.style.display = 'none';
+            deleteButton.style.display = 'none';
+            saveButton.style.display = 'inline-block'; // Show save
+            cancelButton.style.display = 'inline-block'; // Show cancel
+        });
+
+        function exitEditMode() {
+             // Restore pre, hide textarea
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(contentPre); // Re-add original pre
+
+            // Toggle button visibility back
+            editButton.style.display = 'inline-block';
+            copyButton.style.display = 'inline-block';
+            deleteButton.style.display = 'inline-block';
+            saveButton.style.display = 'none';
+            cancelButton.style.display = 'none';
+        }
+
+        // --- Save Logic ---
+        saveButton.addEventListener('click', async () => {
+            const newContent = contentContainer.querySelector('.edit-textarea').value.trim();
+            // Add saving visual state
+            saveButton.textContent = 'Saving...';
+            saveButton.disabled = true;
+            cancelButton.disabled = true;
+
+            await updateItem(item.id, newContent); // Call update function (to be defined)
+
+            // Exit edit mode (Realtime should handle the update display, but we exit edit mode locally)
+            // We might need more robust state handling if the update fails
+            // For now, assume success or rely on realtime refresh
+             exitEditMode();
+             // Reset button state just in case
+             saveButton.textContent = 'Save';
+             saveButton.disabled = false;
+             cancelButton.disabled = false;
+
+        });
+
+        // --- Cancel Logic ---
+        cancelButton.addEventListener('click', () => {
+            exitEditMode(); // Just revert UI changes
+        });
+
+
+        // Add buttons to their container (in desired order)
+        buttonContainer.appendChild(editButton);
+        buttonContainer.appendChild(copyButton);
+        buttonContainer.appendChild(deleteButton);
+        buttonContainer.appendChild(saveButton); // Add hidden buttons
+        buttonContainer.appendChild(cancelButton);
+
+        // Add content and buttons to the item container
+        itemDiv.appendChild(contentContainer); // Add the content container
+        itemDiv.appendChild(buttonContainer);
         clipboardListElement.appendChild(itemDiv);
     });
      statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
 }
+
+
+// --- Function: Update an item in Supabase ---
+async function updateItem(id, newContent) {
+    if (!supabase) return;
+    statusElement.textContent = `Updating item ${id}...`;
+    console.log(`Attempting to update item ${id} with content: "${newContent}"`); // Log content being sent
+
+    try {
+        const { data, error } = await supabase
+            .from(TABLE_NAME)
+            .update({ content: newContent }) // Update the content column
+            .eq('id', id)                     // Where the id matches
+            .select();                        // Optionally select the updated row
+
+        if (error) {
+             // Check for specific errors, e.g., RLS policy violation
+             if (error.message.includes('violates row-level security policy')) {
+                 console.error(`RLS Error updating item ${id}: Make sure UPDATE policy is enabled.`);
+                 statusElement.textContent = `Error: Cannot update item ${id}. Check permissions.`;
+             } else {
+                 throw error; // Re-throw other errors
+             }
+        } else {
+            console.log(`Item ${id} updated successfully. Response data:`, data);
+            statusElement.textContent = `Item ${id} updated.`;
+            // Realtime should handle the UI update, or fetchClipboardItems() in handleRealtimeUpdate
+        }
+
+    } catch (error) {
+        console.error(`Error updating item ${id}:`, error);
+        statusElement.textContent = `Error updating item ${id}: ${error.message}`;
+        // We might need to signal the UI to re-enable buttons or show an error state
+    }
+}
+
 
 // --- Function: Fetch all clipboard items from Supabase ---
 async function fetchClipboardItems() {
