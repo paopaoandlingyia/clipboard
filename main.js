@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import Quill from 'quill'; // Import Quill
 
 // --- Configuration ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -7,9 +8,13 @@ const TABLE_NAME = 'clipboard'; // Your table name
 
 // --- Get HTML Elements ---
 const statusElement = document.getElementById('status');
-const newItemTextarea = document.getElementById('newItemContent');
+// const newItemTextarea = document.getElementById('newItemContent'); // Removed old textarea reference
+const editorContainer = document.getElementById('editor-container'); // Get Quill container
 const addButton = document.getElementById('addButton');
 const clipboardListElement = document.getElementById('clipboardList');
+
+// --- Initialize Quill Editor ---
+let quillEditor = null; // Variable to hold the main Quill instance
 
 // --- Initialize Supabase Client ---
 let supabase = null;
@@ -28,7 +33,8 @@ if (supabaseUrl && supabaseAnonKey) {
     console.error('Supabase URL or Anon Key is missing. Check environment variables.');
     statusElement.textContent = 'Error: Supabase URL or Anon Key missing!';
     if (addButton) addButton.disabled = true;
-    if (newItemTextarea) newItemTextarea.disabled = true;
+    // if (newItemTextarea) newItemTextarea.disabled = true; // Removed old reference
+    // Disable editor if Supabase fails? Quill initialization happens later.
 }
 
 // --- State Variable ---
@@ -47,16 +53,50 @@ function renderClipboardList(items) {
     items.forEach(item => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'clipboard-item';
-        itemDiv.dataset.id = item.id; // Store the item ID on the element
+        itemDiv.dataset.id = item.id;
 
         // --- Content Display ---
         const contentContainer = document.createElement('div');
-        contentContainer.className = 'item-content-container'; // Container for pre or textarea
+        contentContainer.className = 'item-content-container';
 
-        const contentPre = document.createElement('pre');
-        contentPre.className = 'item-content';
-        contentPre.textContent = item.content || '';
-        contentContainer.appendChild(contentPre); // Add pre initially
+        // --- Render content based on whether it's Quill Delta or plain text (legacy/converted) ---
+        try {
+            let contentToShow = item.content; // This is now expected to be jsonb
+
+            // Check if content is a simple JSON string (likely converted plain text)
+            if (typeof contentToShow === 'string') {
+                // Render as plain text in a <pre> tag for compatibility
+                 const pre = document.createElement('pre');
+                 pre.textContent = contentToShow; // Display the raw string
+                 contentContainer.appendChild(pre);
+                 console.warn(`Item ${item.id}: Content is a plain string, rendering as text.`);
+
+            } else if (contentToShow && typeof contentToShow === 'object' && Array.isArray(contentToShow.ops)) {
+                 // It looks like a Quill Delta object, render it using a temporary Quill instance
+                const tempEditorDiv = document.createElement('div');
+                contentContainer.appendChild(tempEditorDiv); // Add div to container first
+                const quillViewer = new Quill(tempEditorDiv, {
+                    theme: 'snow', // Use a theme for proper styling
+                    readOnly: true, // Make it non-editable
+                    modules: { toolbar: false } // No toolbar needed for viewing
+                });
+                quillViewer.setContents(contentToShow); // Load the Delta object
+                console.log(`Item ${item.id}: Rendered Delta content.`);
+            } else {
+                 // Handle unexpected content format
+                 console.error(`Item ${item.id}: Unknown content format`, contentToShow);
+                 const pre = document.createElement('pre');
+                 pre.textContent = '[Error: Unknown content format]';
+                 contentContainer.appendChild(pre);
+            }
+
+        } catch (e) {
+             console.error(`Error rendering content for item ${item.id}:`, e, item.content);
+             const pre = document.createElement('pre');
+             pre.textContent = `[Error rendering content: ${e.message}]`;
+             contentContainer.appendChild(pre);
+        }
+
 
         // --- Buttons ---
         const buttonContainer = document.createElement('div');
@@ -85,8 +125,26 @@ function renderClipboardList(items) {
         copyButton.textContent = 'Copy';
         copyButton.className = 'copy-button';
         copyButton.addEventListener('click', async () => {
+            let textToCopy = '';
             try {
-                await navigator.clipboard.writeText(item.content || '');
+                // Determine the text content to copy
+                let contentData = item.content;
+                if (typeof contentData === 'string') {
+                    textToCopy = contentData; // Legacy plain text
+                } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
+                    // Create a temporary Quill instance to get plain text from Delta
+                    const tempDiv = document.createElement('div');
+                    const tempQuill = new Quill(tempDiv); // No theme/toolbar needed
+                    tempQuill.setContents(contentData);
+                    textToCopy = tempQuill.getText(); // Get plain text
+                } else {
+                    textToCopy = '[Unsupported Content Format]'; // Fallback
+                }
+
+                // Trim potential excessive newlines often added by getText()
+                textToCopy = textToCopy.trim();
+
+                await navigator.clipboard.writeText(textToCopy);
                 copyButton.textContent = 'Copied!';
                 copyButton.disabled = true;
                 setTimeout(() => {
@@ -118,13 +176,34 @@ function renderClipboardList(items) {
         });
 
         // --- Edit Mode Toggle Logic ---
+        let itemEditorInstance = null; // To hold the Quill instance for editing this specific item
+
         editButton.addEventListener('click', () => {
-            // Show textarea, hide pre
-            contentContainer.innerHTML = ''; // Clear content container
-            const editTextArea = document.createElement('textarea');
-            editTextArea.className = 'edit-textarea';
-            editTextArea.value = item.content || '';
-            contentContainer.appendChild(editTextArea);
+            // Initialize Quill editor for this item
+            contentContainer.innerHTML = ''; // Clear current content (viewer/pre)
+            const editDiv = document.createElement('div');
+            editDiv.style.height = '100px'; // Give it some initial height
+            contentContainer.appendChild(editDiv);
+
+            itemEditorInstance = new Quill(editDiv, {
+                 theme: 'snow',
+                 modules: { toolbar: true } // Show toolbar for editing
+            });
+
+            // Load content - handle both Delta and legacy string format
+            let contentToLoad = item.content;
+             if (typeof contentToLoad === 'string') {
+                 // Convert legacy string to Delta format for editing
+                 itemEditorInstance.setText(contentToLoad);
+                 console.log(`Item ${item.id}: Loaded legacy string into editor.`);
+             } else if (contentToLoad && typeof contentToLoad === 'object' && Array.isArray(contentToLoad.ops)) {
+                 itemEditorInstance.setContents(contentToLoad); // Load Delta
+                 console.log(`Item ${item.id}: Loaded Delta into editor.`);
+             } else {
+                 console.error(`Item ${item.id}: Cannot load unknown format into editor.`, contentToLoad);
+                 itemEditorInstance.setText('[Error loading content]');
+             }
+
 
             // Toggle button visibility
             editButton.style.display = 'none';
@@ -135,9 +214,16 @@ function renderClipboardList(items) {
         });
 
         function exitEditMode() {
-             // Restore pre, hide textarea
-            contentContainer.innerHTML = '';
-            contentContainer.appendChild(contentPre); // Re-add original pre
+             // Destroy the item's Quill editor instance
+             if (itemEditorInstance) {
+                 // It seems Quill doesn't have a built-in destroy. We just remove the element.
+                 // Best practice might involve more cleanup if listeners were added directly to Quill.
+                 itemEditorInstance = null;
+             }
+             // Re-render the item in read-only mode
+             // Easiest way is often to just re-render the whole list or fetch again,
+             // but let's try re-rendering just this item's content viewer for now.
+             renderItemContent(contentContainer, item.content, item.id); // Need a helper function
 
             // Toggle button visibility back
             editButton.style.display = 'inline-block';
@@ -149,16 +235,20 @@ function renderClipboardList(items) {
 
         // --- Save Logic ---
         saveButton.addEventListener('click', async () => {
-            const newContent = contentContainer.querySelector('.edit-textarea').value.trim();
+            if (!itemEditorInstance) return;
+
+            const newDeltaContent = itemEditorInstance.getContents(); // Get Delta from item editor
+            console.log(`Saving updated Delta for item ${item.id}:`, JSON.stringify(newDeltaContent));
+
             // Add saving visual state
             saveButton.textContent = 'Saving...';
             saveButton.disabled = true;
             cancelButton.disabled = true;
 
-            await updateItem(item.id, newContent); // Call update function (to be defined)
+            await updateItem(item.id, newDeltaContent); // Pass the Delta object to updateItem
 
             // Exit edit mode (Realtime should handle the update display, but we exit edit mode locally)
-            // We might need more robust state handling if the update fails
+            // Update function might return success/failure for better handling here
             // For now, assume success or rely on realtime refresh
              exitEditMode();
              // Reset button state just in case
@@ -189,19 +279,52 @@ function renderClipboardList(items) {
      statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
 }
 
+// Helper function to render item content (used initially and after exiting edit mode)
+function renderItemContent(container, contentData, itemId) {
+    container.innerHTML = ''; // Clear previous content
+     try {
+            // Check if content is a simple JSON string (likely converted plain text)
+            if (typeof contentData === 'string') {
+                 const pre = document.createElement('pre');
+                 pre.textContent = contentData;
+                 container.appendChild(pre);
+            } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
+                 // Render Delta using a temporary Quill instance
+                const tempEditorDiv = document.createElement('div');
+                container.appendChild(tempEditorDiv);
+                const quillViewer = new Quill(tempEditorDiv, {
+                    theme: 'snow', readOnly: true, modules: { toolbar: false }
+                });
+                quillViewer.setContents(contentData);
+            } else {
+                 console.error(`Item ${itemId}: Unknown content format during re-render`, contentData);
+                 const pre = document.createElement('pre');
+                 pre.textContent = '[Error: Unknown content format]';
+                 container.appendChild(pre);
+            }
+        } catch (e) {
+             console.error(`Error re-rendering content for item ${itemId}:`, e, contentData);
+             const pre = document.createElement('pre');
+             pre.textContent = `[Error rendering content: ${e.message}]`;
+             container.appendChild(pre);
+        }
+}
+
 
 // --- Function: Update an item in Supabase ---
-async function updateItem(id, newContent) {
+// newContent is now expected to be a Quill Delta object
+async function updateItem(id, newContentDelta) {
     if (!supabase) return;
     statusElement.textContent = `Updating item ${id}...`;
-    console.log(`Attempting to update item ${id} with content: "${newContent}"`); // Log content being sent
+    console.log(`Attempting to update item ${id} with Delta:`, JSON.stringify(newContentDelta));
 
     try {
+        // Save the Delta object directly
         const { data, error } = await supabase
             .from(TABLE_NAME)
-            .update({ content: newContent }) // Update the content column
-            .eq('id', id)                     // Where the id matches
-            .select();                        // Optionally select the updated row
+            .update({ content: newContentDelta }) // Save the Delta object
+            .eq('id', id)
+            .select();
 
         if (error) {
              // Check for specific errors, e.g., RLS policy violation
@@ -249,26 +372,44 @@ async function fetchClipboardItems() {
 
 // --- Function: Add a new item to Supabase ---
 async function addNewItem() {
-    const content = newItemTextarea.value.trim(); // Get text and remove leading/trailing whitespace
-    if (!content || !supabase) {
+    // Get content from Quill editor as Delta object
+    const delta = quillEditor.getContents();
+
+    // Basic check if editor is empty (Delta has only one op: a newline insert)
+    if (!delta || (delta.ops && delta.ops.length === 1 && delta.ops[0].insert === '\n') || !supabase) {
+         console.log("Editor is empty or Supabase not ready. Not adding.");
         return; // Do nothing if no content or Supabase isn't ready
     }
+
+    // The content to save is the Delta object itself
+    const contentToSave = delta;
+    console.log("Saving content (Delta):", JSON.stringify(contentToSave));
+
 
     addButton.disabled = true; // Disable button while saving
     addButton.textContent = 'Adding...';
     statusElement.textContent = 'Adding new item...';
 
     try {
+        // Insert the Delta object into the jsonb column
         const { error } = await supabase
             .from(TABLE_NAME)
-            .insert({ content: content }); // Only need to insert content, id/created_at are automatic
+            .insert({ content: contentToSave }); // Save the Delta object
 
-        if (error) throw error;
-
-        newItemTextarea.value = ''; // Clear the input box on success
-        console.log('New item added successfully.');
-        statusElement.textContent = 'Item added!';
-        // No need to manually add to list here, realtime 'INSERT' event will handle it
+        if (error) {
+            // Check for specific errors, e.g., RLS policy violation
+             if (error.message.includes('violates row-level security policy')) {
+                 console.error(`RLS Error adding item: Make sure INSERT policy is enabled.`);
+                 statusElement.textContent = `Error: Cannot add item. Check permissions.`;
+             } else {
+                 throw error; // Re-throw other errors
+             }
+        } else {
+             quillEditor.setContents([{ insert: '\n' }]); // Clear the editor on success
+            console.log('New item added successfully.');
+            statusElement.textContent = 'Item added!';
+            // Realtime should handle the UI update
+        }
 
     } catch (error) {
         console.error('Error adding new item:', error);
@@ -375,21 +516,106 @@ function setupRealtimeSubscription() {
 }
 
 // --- Main Execution Logic ---
-if (supabase) {
-    // 1. Add event listener for the "Add Clip" button
+if (supabase && editorContainer) { // Check if editor container exists
+    // 1. Initialize Quill Editor
+    quillEditor = new Quill('#editor-container', {
+        modules: {
+            toolbar: [ // Basic toolbar options
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline'],
+                ['image', 'code-block'], // Add image button
+                [{ list: 'ordered'}, { list: 'bullet' }]
+            ]
+        },
+        placeholder: 'Paste or type content here...',
+        theme: 'snow' // 'snow' is a standard theme with toolbar
+    });
+    console.log("Quill editor initialized.");
+
+    // --- Quill Image Handler ---
+    async function imageHandler() {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = async () => {
+            const file = input.files[0];
+            if (!file || !supabase) {
+                console.log("No file selected or Supabase not ready.");
+                return;
+            }
+
+            // Show uploading status
+            statusElement.textContent = 'Uploading image...';
+            const originalRange = quillEditor.getSelection(true); // Save cursor position
+
+            try {
+                // Create a unique file path (e.g., using timestamp and original filename)
+                const fileName = `${Date.now()}-${file.name}`;
+                const filePath = `public/${fileName}`; // Store in a 'public' folder within the bucket
+
+                // Upload file to Supabase Storage
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('clipboard-media') // Your bucket name
+                    .upload(filePath, file, {
+                        cacheControl: '3600', // Optional: Cache control
+                        upsert: false // Optional: Don't overwrite existing files with same name
+                    });
+
+                if (uploadError) {
+                    throw uploadError;
+                }
+
+                // Get the public URL of the uploaded file
+                const { data: urlData, error: urlError } = supabase.storage
+                    .from('clipboard-media')
+                    .getPublicUrl(filePath); // Use the exact path used for upload
+
+                 if (urlError) {
+                    throw urlError;
+                }
+
+                if (!urlData || !urlData.publicUrl) {
+                     throw new Error("Failed to get public URL after upload.");
+                 }
+
+                const imageUrl = urlData.publicUrl;
+                console.log('Image uploaded successfully:', imageUrl);
+
+                // Insert image into Quill editor at the original cursor position
+                quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
+                quillEditor.setSelection(originalRange.index + 1); // Move cursor after image
+
+                statusElement.textContent = 'Image uploaded and inserted.';
+
+            } catch (error) {
+                console.error('Image upload failed:', error);
+                statusElement.textContent = `Image upload failed: ${error.message}`;
+            } finally {
+                 // Reset file input (important for selecting the same file again)
+                input.value = '';
+            }
+        };
+    }
+
+     // Bind the image handler to the Quill toolbar
+    quillEditor.getModule('toolbar').addHandler('image', imageHandler);
+
+
+    // 2. Add event listener for the "Add Clip" button
     addButton.addEventListener('click', addNewItem);
 
-    // Optional: Allow pressing Enter in textarea to add clip (Shift+Enter for newline)
-    newItemTextarea.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault(); // Prevent default Enter behavior (newline)
-            addNewItem();
-        }
-    });
+    // Optional: Keyboard shortcut (e.g., Ctrl+Enter) - might conflict with Quill's defaults
+    // editorContainer.addEventListener('keydown', (event) => { ... });
 
 
-    // 2. Set up the realtime subscription
+    // 3. Set up the realtime subscription
     setupRealtimeSubscription();
+
+} else if (!editorContainer) {
+     console.error("Quill container '#editor-container' not found.");
+     statusElement.textContent = 'Error: Editor UI element missing!';
 
 } else {
     // Handle case where Supabase client failed to initialize
