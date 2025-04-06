@@ -1,20 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-// --- 配置 ---
-// 读取环境变量 (Vite 会处理这个)
-// 确保在 Vercel 中设置了 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY
+// --- Configuration ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const TABLE_NAME = 'clipboard'; // Your table name
 
-// 你的 Supabase 表名和用于存储内容的行的 ID
-const TABLE_NAME = 'clipboard'; // 你的表名
-const ROW_ID = 1;              // 假设你用 id=1 的行来存储剪贴板内容
-
-// --- 获取 HTML 元素 ---
+// --- Get HTML Elements ---
 const statusElement = document.getElementById('status');
-const textarea = document.getElementById('clipboardContent');
+const newItemTextarea = document.getElementById('newItemContent');
+const addButton = document.getElementById('addButton');
+const clipboardListElement = document.getElementById('clipboardList');
 
-// --- 初始化 Supabase 客户端 ---
+// --- Initialize Supabase Client ---
 let supabase = null;
 if (supabaseUrl && supabaseAnonKey) {
     try {
@@ -24,156 +21,224 @@ if (supabaseUrl && supabaseAnonKey) {
     } catch (error) {
         console.error("Error initializing Supabase:", error);
         statusElement.textContent = `Error initializing Supabase: ${error.message}`;
+        if (addButton) addButton.disabled = true;
+        if (newItemTextarea) newItemTextarea.disabled = true;
     }
 } else {
     console.error('Supabase URL or Anon Key is missing. Check environment variables.');
     statusElement.textContent = 'Error: Supabase URL or Anon Key missing!';
+    if (addButton) addButton.disabled = true;
+    if (newItemTextarea) newItemTextarea.disabled = true;
 }
 
-// --- 防抖函数 (避免过于频繁地保存) ---
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
+// --- State Variable ---
+let clipboardItems = []; // To hold the current list of items
+
+// --- Function: Render the list of clipboard items ---
+function renderClipboardList(items) {
+    if (!clipboardListElement) return;
+    clipboardListElement.innerHTML = ''; // Clear the current list display
+
+    if (items.length === 0) {
+        clipboardListElement.innerHTML = '<p>No clipboard items yet.</p>';
+        return;
+    }
+
+    items.forEach(item => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'clipboard-item';
+        itemDiv.dataset.id = item.id; // Store the item ID on the element
+
+        const contentPre = document.createElement('pre'); // Use <pre> to preserve whitespace/newlines
+        contentPre.textContent = item.content || ''; // Handle potentially null content
+
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.className = 'delete-button';
+        deleteButton.addEventListener('click', async (e) => {
+            // Prevent double clicks, show loading state
+            e.target.disabled = true;
+            e.target.textContent = 'Deleting...';
+            await deleteItem(item.id);
+            // Re-enable button in case of error (realtime will handle removal on success)
+            // e.target.disabled = false;
+            // e.target.textContent = 'Delete';
+        });
+
+        itemDiv.appendChild(contentPre);
+        itemDiv.appendChild(deleteButton);
+        clipboardListElement.appendChild(itemDiv);
+    });
+     statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
 }
 
-// --- 函数：从 Supabase 获取初始内容 ---
-async function fetchInitialContent() {
+// --- Function: Fetch all clipboard items from Supabase ---
+async function fetchClipboardItems() {
     if (!supabase) return;
-    statusElement.textContent = 'Fetching initial content...';
+    statusElement.textContent = 'Fetching clipboard history...';
     try {
         const { data, error } = await supabase
             .from(TABLE_NAME)
-            .select('content')
-            .eq('id', ROW_ID)
-            .single(); // 只获取一行
-
-        if (error) {
-            // 如果错误是因为行不存在 (e.g., code 'PGRST116')，这不是严重错误，只是还没内容
-            if (error.code === 'PGRST116') {
-                console.log('No initial content found (row might not exist yet).');
-                textarea.value = ''; // 清空文本区
-                statusElement.textContent = 'Ready. No content yet.';
-                // 可选：如果行不存在，可以尝试插入一个空行
-                // await supabase.from(TABLE_NAME).insert({ id: ROW_ID, content: '' });
-            } else {
-                throw error; // 其他错误需要报告
-            }
-        } else if (data) {
-            textarea.value = data.content || ''; // 设置文本区内容
-            statusElement.textContent = 'Ready and synced.';
-        } else {
-             textarea.value = ''; // 以防万一 data 为 null
-             statusElement.textContent = 'Ready. No content found.';
-        }
-         console.log('Initial content loaded.');
-    } catch (error) {
-        console.error('Error fetching initial content:', error);
-        statusElement.textContent = `Error fetching content: ${error.message}`;
-    }
-}
-
-// --- 函数：保存内容到 Supabase ---
-async function saveContent(content) {
-    if (!supabase) return;
-    statusElement.textContent = 'Saving...';
-    try {
-        // 使用 upsert: 如果行存在则更新，不存在则插入 (需要 id 是主键)
-        const { error } = await supabase
-            .from(TABLE_NAME)
-            .upsert({ id: ROW_ID, content: content }, { onConflict: 'id' });
+            .select('*') // Select all columns (id, content, created_at)
+            .order('created_at', { ascending: true }); // Order by creation time, oldest first
 
         if (error) throw error;
 
-        console.log('Content saved successfully.');
-        // 状态会在实时更新时变为 Ready and synced
-        // statusElement.textContent = 'Saved.'; // 可以暂时显示 Saved
+        clipboardItems = data || []; // Update our local state
+        renderClipboardList(clipboardItems); // Render the fetched items
+        console.log('Clipboard items fetched and rendered.');
+
     } catch (error) {
-        console.error('Error saving content:', error);
-        statusElement.textContent = `Error saving: ${error.message}`;
+        console.error('Error fetching clipboard items:', error);
+        statusElement.textContent = `Error fetching history: ${error.message}`;
     }
 }
 
-// 使用防抖包装保存函数，延迟 1 秒执行
-const debouncedSaveContent = debounce(saveContent, 1000); // 1000ms = 1 second
+// --- Function: Add a new item to Supabase ---
+async function addNewItem() {
+    const content = newItemTextarea.value.trim(); // Get text and remove leading/trailing whitespace
+    if (!content || !supabase) {
+        return; // Do nothing if no content or Supabase isn't ready
+    }
 
-// --- 函数：处理实时更新 ---
+    addButton.disabled = true; // Disable button while saving
+    addButton.textContent = 'Adding...';
+    statusElement.textContent = 'Adding new item...';
+
+    try {
+        const { error } = await supabase
+            .from(TABLE_NAME)
+            .insert({ content: content }); // Only need to insert content, id/created_at are automatic
+
+        if (error) throw error;
+
+        newItemTextarea.value = ''; // Clear the input box on success
+        console.log('New item added successfully.');
+        statusElement.textContent = 'Item added!';
+        // No need to manually add to list here, realtime 'INSERT' event will handle it
+
+    } catch (error) {
+        console.error('Error adding new item:', error);
+        statusElement.textContent = `Error adding item: ${error.message}`;
+    } finally {
+        addButton.disabled = false; // Re-enable button
+         addButton.textContent = 'Add Clip';
+    }
+}
+
+// --- Function: Delete an item from Supabase ---
+async function deleteItem(id) {
+    if (!supabase) return;
+    statusElement.textContent = `Deleting item ${id}...`;
+    try {
+        const { error } = await supabase
+            .from(TABLE_NAME)
+            .delete()
+            .eq('id', id); // Specify which item to delete by ID
+
+        if (error) throw error;
+
+        console.log(`Item ${id} deleted successfully.`);
+        statusElement.textContent = `Item ${id} deleted.`;
+        // No need to manually remove from list here, realtime 'DELETE' event will handle it
+
+    } catch (error) {
+        console.error(`Error deleting item ${id}:`, error);
+        statusElement.textContent = `Error deleting item ${id}: ${error.message}`;
+        // If deletion failed, we might need to re-enable the delete button on the item
+        const failedButton = clipboardListElement.querySelector(`.clipboard-item[data-id='${id}'] .delete-button`);
+        if(failedButton) {
+            failedButton.disabled = false;
+            failedButton.textContent = 'Delete';
+        }
+    }
+}
+
+// --- Function: Handle Realtime Updates ---
 function handleRealtimeUpdate(payload) {
     console.log('Realtime change received:', payload);
-    statusElement.textContent = 'Change received, updating...';
-    if (payload.new && payload.new.id === ROW_ID) {
-        const newContent = payload.new.content || '';
-        // 只在内容确实不同，并且当前文本框不是焦点时更新，避免光标跳动
-        if (textarea.value !== newContent && document.activeElement !== textarea) {
-            textarea.value = newContent;
-            console.log('Textarea updated from realtime event.');
-        } else if (textarea.value !== newContent && document.activeElement === textarea) {
-            console.log('Realtime update received while editing, content differs. Consider manual sync or ignoring.');
-            // 如果内容不同步了，可能还是需要更新，但要小心光标
-            // 简单的处理：还是更新吧，让用户知道远程变了
-            const cursorPosition = textarea.selectionStart;
-            textarea.value = newContent;
-            try {
-               textarea.setSelectionRange(cursorPosition, cursorPosition);
-            } catch (e) { /* 忽略可能的错误 */ }
-        } else {
-             console.log('Realtime update ignored (content same or editing).');
-        }
-         statusElement.textContent = 'Ready and synced.';
+    statusElement.textContent = 'Realtime update received...';
+
+    // --- Handling INSERT ---
+    if (payload.eventType === 'INSERT') {
+        const newItem = payload.new;
+        // Add to our local state (maintaining sort order - easiest is often to just refetch)
+        // Simple approach: Refetch the whole list to ensure correct order
+        console.log('INSERT detected, refetching list...');
+        fetchClipboardItems();
+        // More advanced: Insert newItem into the clipboardItems array in the correct sorted position
+        // and then call renderClipboardList(clipboardItems);
+    }
+    // --- Handling DELETE ---
+    else if (payload.eventType === 'DELETE') {
+        const deletedItemId = payload.old.id;
+        // Remove from our local state
+        clipboardItems = clipboardItems.filter(item => item.id !== deletedItemId);
+        // Re-render the list from the updated state
+        renderClipboardList(clipboardItems);
+        console.log(`Item ${deletedItemId} removed via realtime.`);
+        statusElement.textContent = `Item ${deletedItemId} removed.`;
+    }
+    // --- Handling UPDATE (optional for now, but good practice) ---
+    else if (payload.eventType === 'UPDATE') {
+        // If we later allow editing, we'd handle it here
+        // Simple approach: Refetch
+        console.log('UPDATE detected, refetching list...');
+        fetchClipboardItems();
     }
 }
 
-// --- 设置实时订阅 ---
+// --- Function: Set up Realtime Subscription ---
 function setupRealtimeSubscription() {
     if (!supabase) return;
     statusElement.textContent = 'Setting up realtime subscription...';
-    const channel = supabase.channel(`clipboard-room-${ROW_ID}`); // 为特定行创建频道
+    const channel = supabase.channel('public-clipboard-history'); // A channel name for this feature
 
     channel
         .on(
             'postgres_changes',
             {
-                event: '*', // 监听所有事件 (INSERT, UPDATE, DELETE)
+                event: '*', // Listen to INSERT, UPDATE, DELETE
                 schema: 'public',
-                table: TABLE_NAME,
-                filter: `id=eq.${ROW_ID}` // 只监听特定行的变化
+                table: TABLE_NAME
+                // No filter needed, we want updates for the whole table
             },
-            handleRealtimeUpdate
+            handleRealtimeUpdate // Call our handler function
         )
         .subscribe((status, err) => {
             if (status === 'SUBSCRIBED') {
-                console.log(`Successfully subscribed to realtime updates for row ${ROW_ID}!`);
-                statusElement.textContent = 'Realtime connected. Fetching content...';
-                // 订阅成功后，获取一次最新内容
-                fetchInitialContent();
+                console.log('Successfully subscribed to realtime updates for the table!');
+                statusElement.textContent = 'Realtime connected. Fetching history...';
+                // Once subscribed, fetch the initial list of items
+                fetchClipboardItems();
             } else {
                 console.error(`Realtime subscription failed or closed: ${status}`, err);
                 statusElement.textContent = `Realtime error: ${status}`;
-                // 可以尝试重新连接等错误处理
+                // Add logic here to maybe retry subscription after a delay
             }
         });
 
-    // 返回 channel 对象，以便之后可以取消订阅（如果需要）
-    return channel;
+    return channel; // Return channel if needed for unsubscribing later
 }
 
-// --- 主程序逻辑 ---
+// --- Main Execution Logic ---
 if (supabase) {
-    // 1. 监听文本框输入事件，触发防抖保存
-    textarea.addEventListener('input', () => {
-        debouncedSaveContent(textarea.value);
+    // 1. Add event listener for the "Add Clip" button
+    addButton.addEventListener('click', addNewItem);
+
+    // Optional: Allow pressing Enter in textarea to add clip (Shift+Enter for newline)
+    newItemTextarea.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault(); // Prevent default Enter behavior (newline)
+            addNewItem();
+        }
     });
 
-    // 2. 设置实时订阅
+
+    // 2. Set up the realtime subscription
     setupRealtimeSubscription();
 
 } else {
-     // Supabase 未初始化时的处理
-     textarea.disabled = true; // 禁用文本框
+    // Handle case where Supabase client failed to initialize
+    statusElement.textContent = 'Failed to connect to backend. Check console.';
 }
