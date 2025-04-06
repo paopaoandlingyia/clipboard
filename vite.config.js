@@ -8,7 +8,7 @@ export default defineConfig({
     rollupOptions: {
       // If bundling still fails, uncommenting 'external' might be needed,
       // but ideally Vite handles the bundling.
-      // external: ['quill']
+      external: ['quill']
     }
   }
   // No specific config needed by default, Vite should handle CJS dependencies.
