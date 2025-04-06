@@ -246,3 +246,60 @@ h1, h2 {
     align-items: flex-start; /* Align items to the top */
     /* align-items: center; */ /* Removed vertical centering */
 }
+
+/* --- Responsive Styles --- */
+@media (max-width: 768px) {
+    #main-layout {
+        flex-direction: column; /* Stack panels vertically */
+        gap: 15px; /* Adjust gap for vertical layout */
+    }
+
+    #history-panel,
+    #input-panel {
+        flex: none; /* Remove flex grow/shrink behavior */
+        width: 100%; /* Make panels take full width */
+        box-sizing: border-box; /* Include padding in width calculation */
+        max-height: none; /* Remove fixed max height for panels */
+        align-self: stretch; /* Allow panels to stretch */
+    }
+
+    #history-panel {
+        /* Optionally set a different height limit for mobile */
+        max-height: 60vh; /* Example: 60% of viewport height for history */
+        overflow-y: auto; /* Ensure scrolling is enabled */
+        padding-right: 0; /* Remove padding added for desktop scrollbar */
+    }
+
+    #input-panel {
+         /* Adjust padding or other styles if needed */
+         padding: 10px;
+    }
+
+    #app {
+        padding: 10px; /* Reduce padding on smaller screens */
+        margin: 10px auto;
+        max-width: 100%; /* Allow app to use full width */
+    }
+
+     h1 {
+        font-size: 1.6rem; /* Slightly adjust heading sizes */
+    }
+     h2 {
+        font-size: 1.3rem;
+    }
+
+     /* Adjust button sizes or text if needed */
+     #addButton {
+         padding: 12px 15px; /* Make add button slightly larger */
+     }
+     .clipboard-item button {
+         padding: 6px 8px; /* Adjust item button padding */
+         font-size: 0.75rem;
+         min-width: 50px;
+     }
+
+     /* Ensure editor container is sized reasonably */
+     #editor-container {
+         height: 120px; /* Adjust editor height for mobile */
+     }
+}
