@@ -54,6 +54,17 @@ function renderClipboardList(items) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'clipboard-item';
         itemDiv.dataset.id = item.id;
+        
+        // Add expand/collapse button
+        const expandBtn = document.createElement('button');
+        expandBtn.className = 'expand-button';
+        expandBtn.innerHTML = '↓';
+        expandBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            itemDiv.classList.toggle('expanded');
+            expandBtn.innerHTML = itemDiv.classList.contains('expanded') ? '↑' : '↓';
+        });
+        itemDiv.appendChild(expandBtn);
 
         // --- Content Display ---
         const contentContainer = document.createElement('div');
