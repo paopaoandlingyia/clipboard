@@ -117,12 +117,59 @@ h1, h2 {
     border-radius: 4px;
     padding: 15px;
     margin-bottom: 15px;
-    display: flex; /* Use flexbox for layout */
-    justify-content: space-between; /* Push content and button apart */
-    align-items: flex-start; /* Align items top */
-    word-wrap: break-word; /* Wrap long words */
-    overflow-wrap: break-word; /* Ensure wrapping */
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    height: 150px;
+    overflow: hidden;
+    position: relative;
+    transition: height 0.3s ease;
+}
+
+.clipboard-item.expanded {
+    height: auto;
+}
+
+.clipboard-item::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(to bottom, rgba(249,249,249,0), rgba(249,249,249,1));
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.clipboard-item.expanded::after {
+    opacity: 0;
+}
+
+.expand-button {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.expand-button:hover {
+    background: #0056b3;
 }
 
 .clipboard-item pre { /* Use <pre> for preserving whitespace */
