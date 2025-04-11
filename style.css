@@ -123,8 +123,13 @@ h2 {
     position: relative; /* For absolute positioning of buttons */
     display: flex;
     flex-direction: column;
-    transition: box-shadow 0.2s;
+    transition: box-shadow 0.2s, min-height 0.35s ease-out; /* Add min-height transition */
     box-sizing: border-box;
+    min-height: 146px; /* Ensure minimum height for collapsed state */
+}
+
+.clipboard-item.expanded {
+    min-height: auto; /* Allow expanded item to grow naturally */
 }
 
 .clipboard-item:hover {
@@ -270,33 +275,33 @@ h2 {
     background: linear-gradient(90deg, #b91c1c 60%, #ef4444 100%);
 }
 
-/* --- Show More Button --- */
+/* --- Show More Button (Text Link Style) --- */
 .show-more-button {
     position: relative; /* In normal document flow */
-    width: 100%; /* Take full width */
-    margin: 10px 0 0 0; /* Margin top for spacing, remove side margins */
-    padding: 8px 0;
+    width: fit-content; /* Only take width needed for text */
+    margin: 10px auto 0 auto; /* Center horizontally, margin top */
+    padding: 4px 8px; /* Smaller padding */
     text-align: center;
-    background: transparent;
-    height: 35px;
-    line-height: 35px;
-    border: none;
-    border-top: 1px solid #e0e7ef;
-    color: #2563eb;
+    background: transparent; /* No background */
+    border: none; /* No border */
+    color: #2563eb; /* Link color */
     font-weight: 500;
     cursor: pointer;
-    font-size: 0.95rem;
-    transition: background-color 0.2s;
-    border-radius: 5px;
+    font-size: 0.9rem; /* Slightly smaller */
+    transition: color 0.2s; /* Transition color on hover */
+    border-radius: 4px; /* Optional: slight rounding */
     box-sizing: border-box;
+    display: block; /* Ensure it takes margin auto correctly */
     /* display: none; /* Initially hidden, shown by JS if content overflows */
 }
 
 .show-more-button:hover {
-    background-color: rgba(37, 99, 235, 0.05);
+    color: #1d4ed8; /* Darker blue on hover */
+    text-decoration: underline; /* Add underline on hover */
 }
 
 .show-more-button svg {
+    display: inline-block; /* Keep icon inline */
     vertical-align: middle;
     width: 16px;
     height: 16px;
