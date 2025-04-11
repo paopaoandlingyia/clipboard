@@ -235,7 +235,13 @@ function renderClipboardList(items) {
 
             itemEditorInstance = new Quill(editDiv, {
                  theme: 'snow',
-                 modules: { toolbar: true } // Show toolbar for editing
+                 modules: {
+                     // Simplified toolbar: only basic text formatting
+                     toolbar: [
+                         ['bold', 'italic', 'underline'],
+                         ['code-block'] // Keep code block for code snippets
+                     ]
+                 }
             });
 
             // Load content - handle both Delta and legacy string format
