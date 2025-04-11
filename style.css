@@ -157,27 +157,47 @@ h2 {
     opacity: 0;
 }
 
-.expand-button {
-    /* Removed absolute positioning */
-    background: linear-gradient(90deg, #64748b 60%, #334155 100%); /* Use a neutral color */
-    color: white;
+/* Removed .expand-button styles */
+
+/* New Show More Button Style */
+.show-more-button {
+    width: calc(100% + 36px); /* Span full card width including padding */
+    margin-left: -18px; /* Offset padding */
+    margin-right: -18px; /* Offset padding */
+    margin-top: 0; /* Let ::after handle spacing */
+    padding: 8px 0;
+    text-align: center;
+    background: transparent; /* Make it subtle */
     border: none;
-    border-radius: 5px; /* Match other buttons */
-    width: 100%; /* Full width within the button column */
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-top: 1px solid #e0e7ef; /* Separator line */
+    color: #2563eb;
+    font-weight: 500;
     cursor: pointer;
-    /* z-index: 1; */ /* No longer needed */
-    box-shadow: 0 1px 4px rgba(37,99,235,0.07); /* Match other buttons */
-    font-size: 1.2rem;
-    transition: background 0.2s;
-    margin-top: 7px; /* Add space above */
+    font-size: 0.95rem;
+    transition: background-color 0.2s;
+    position: absolute; /* Position relative to clipboard-item */
+    bottom: 0; /* Stick to bottom when collapsed */
+    left: 0;
+    right: 0;
+    border-radius: 0 0 10px 10px; /* Match bottom corners */
 }
 
-.expand-button:hover {
-    background: linear-gradient(90deg, #334155 60%, #64748b 100%); /* Adjust hover color */
+.clipboard-item.expanded .show-more-button {
+    position: relative; /* Back to normal flow when expanded */
+    margin-top: 10px; /* Add space when expanded */
+    border-radius: 5px; /* Normal radius when expanded */
+}
+
+.show-more-button:hover {
+    background-color: rgba(37, 99, 235, 0.05); /* Subtle hover */
+}
+
+.show-more-button svg { /* Style for potential SVG icons */
+    vertical-align: middle;
+    width: 16px;
+    height: 16px;
+    stroke: #2563eb;
+    stroke-width: 2;
 }
 
 .clipboard-item pre {
@@ -431,14 +451,14 @@ h1, h2 {
 .clipboard-item::after {
     content: '';
     position: absolute;
-    bottom: 0;
+    bottom: 38px; /* Position above the show-more-button height + padding */
     left: 0;
     right: 0;
     height: 30px;
-    background: linear-gradient(to bottom, rgba(249,249,249,0), rgba(249,249,249,1));
+    background: linear-gradient(to bottom, rgba(248,250,252,0), rgba(248,250,252,1));
     pointer-events: none;
     opacity: 1;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s, bottom 0.3s; /* Animate bottom position */
 }
 
 .clipboard-item.expanded::after {
@@ -627,23 +647,3 @@ h1, h2 {
 
      h1 {
         font-size: 1.6rem; /* Slightly adjust heading sizes */
-    }
-     h2 {
-        font-size: 1.3rem;
-    }
-
-     /* Adjust button sizes or text if needed */
-     #addButton {
-         padding: 12px 15px; /* Make add button slightly larger */
-     }
-     .clipboard-item button {
-         padding: 6px 8px; /* Adjust item button padding */
-         font-size: 0.75rem;
-         min-width: 50px;
-     }
-
-     /* Ensure editor container is sized reasonably */
-     #editor-container {
-         height: 120px; /* Adjust editor height for mobile */
-     }
-}
