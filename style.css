@@ -114,8 +114,10 @@ h2 {
 
 /* --- Clipboard Item --- */
 .clipboard-item {
-    background: linear-gradient(120deg, #f8fafc 60%, #e0e7ef 100%);
-    border: 1.5px solid #e0e7ef;
+    /* background: linear-gradient(120deg, #f8fafc 60%, #e0e7ef 100%); /* 移除或注释掉这个复杂渐变 */
+    background: #f8fafc; /* 改为使用单一的浅色背景，更统一 */
+    /* border: 1.5px solid #e0e7ef; /* 可以考虑将边框颜色改得更浅一些，与新背景更协调 */
+    border: 1.5px solid #e5e7eb; /* 例如使用更浅的灰色 */
     border-radius: 10px;
     padding: 18px; /* Consistent padding */
     margin-bottom: 18px;
@@ -141,36 +143,21 @@ h2 {
 .item-content-container {
     flex-grow: 1; /* Takes available space */
     min-width: 0; /* Prevents flex overflow */
-    padding-right: 85px; /* Space for absolute positioned buttons */
-    max-height: 110px; /* Initial collapsed height */
-    overflow: hidden;
-    position: relative; /* Needed for ::before fade */
-    transition: max-height 0.35s ease-out;
+    padding-right: 85px; /* Space for absolute positioned buttons (保持不变) */
+    max-height: 110px; /* Initial collapsed height (保持不变) */
+    overflow: hidden; /* (保持不变) */
+    position: relative; /* Needed for ::before fade (现在不需要了，但保留也无妨) */
+    transition: max-height 0.35s ease-out; /* (保持不变) */
+
+    /* --- 添加下面的 mask-image 属性来实现内容底部渐隐 --- */
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    /* 为了浏览器兼容性，也添加 -webkit- 前缀 */
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
 .clipboard-item.expanded .item-content-container {
     max-height: 5000px; /* Large value for expansion animation */
     overflow: visible; /* Show all content */
-}
-
-/* Fade-out effect at the bottom of the CONTENT AREA when collapsed */
-.item-content-container::before {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 40px;
-    background: linear-gradient(to bottom, rgba(248,250,252,0) 0%, rgba(248,250,252,1) 80%);
-    pointer-events: none;
-    opacity: 1;
-    transition: opacity 0.1s linear; /* Faster fade out when expanding */
-    z-index: 1; /* Above content */
-    border-radius: 0 0 8px 8px; /* Match container corners */
-}
-
-.clipboard-item.expanded .item-content-container::before {
-    opacity: 0;
 }
 
 /* --- Content Styling (Inside Container) --- */
