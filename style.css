@@ -125,10 +125,11 @@ h2 {
     word-wrap: break-word;
     overflow-wrap: break-word;
     box-shadow: 0 2px 8px rgba(37,99,235,0.04);
-    height: 150px;
+    /* height: 150px; Removed fixed height for collapsed state, let content determine */
+    max-height: 150px; /* Use max-height for collapse effect */
     overflow: hidden;
     position: relative;
-    transition: height 0.3s, box-shadow 0.2s;
+    transition: max-height 0.3s ease-out, box-shadow 0.2s; /* Animate max-height */
 }
 
 .clipboard-item:hover {
@@ -137,59 +138,73 @@ h2 {
 }
 
 .clipboard-item.expanded {
-    height: auto;
+    max-height: 1000px; /* Set a large max-height for expansion */
+    /* Allow overflow if content is truly huge */
+    /* overflow: visible; Might be needed depending on content */
 }
 
-.clipboard-item::after {
+/* Fade-out effect at the bottom when collapsed */
+.clipboard-item::before { /* Use ::before to not conflict with ::after for show-more */
     content: '';
     position: absolute;
+    bottom: 0; /* Start at the very bottom */
     bottom: 0;
     left: 0;
     right: 0;
-    height: 30px;
-    background: linear-gradient(to bottom, rgba(248,250,252,0), rgba(248,250,252,1));
+    height: 40px; /* Make fade taller */
+    background: linear-gradient(to bottom, rgba(248,250,252,0) 0%, rgba(248,250,252,1) 80%);
     pointer-events: none;
     opacity: 1;
-    transition: opacity 0.3s;
+    transition: opacity 0.3s ease-out;
+    z-index: 1; /* Ensure it's above content */
 }
 
-.clipboard-item.expanded::after {
-    opacity: 0;
+.clipboard-item.expanded::before {
+    opacity: 0; /* Hide fade when expanded */
 }
 
-/* Removed .expand-button styles */
 
-/* New Show More Button Style */
+/* Show More Button - Revised */
 .show-more-button {
     width: calc(100% + 36px); /* Span full card width including padding */
     margin-left: -18px; /* Offset padding */
     margin-right: -18px; /* Offset padding */
-    margin-top: 0; /* Let ::after handle spacing */
+    margin-top: 10px; /* Add space above button when expanded */
     padding: 8px 0;
     text-align: center;
-    background: transparent; /* Make it subtle */
+    background: rgba(255,255,255,0.8); /* Slightly opaque background */
+    backdrop-filter: blur(2px); /* Frosted glass effect */
     border: none;
     border-top: 1px solid #e0e7ef; /* Separator line */
     color: #2563eb;
     font-weight: 500;
     cursor: pointer;
     font-size: 0.95rem;
-    transition: background-color 0.2s;
-    position: absolute; /* Position relative to clipboard-item */
-    bottom: 0; /* Stick to bottom when collapsed */
-    left: 0;
+    transition: background-color 0.2s, bottom 0.3s ease-out; /* Animate bottom */
+    position: absolute; /* Keep absolute for positioning */
+    bottom: 0px; /* Stick to bottom when collapsed */
+    left: 0; /* Use left/right 0 instead of width calc */
     right: 0;
     border-radius: 0 0 10px 10px; /* Match bottom corners */
+    z-index: 2; /* Ensure it's above the fade effect */
 }
 
+/* When expanded, button should be part of the normal flow */
 .clipboard-item.expanded .show-more-button {
-    position: relative; /* Back to normal flow when expanded */
-    margin-top: 10px; /* Add space when expanded */
+    position: relative; /* Change to relative */
+    bottom: auto; /* Remove bottom positioning */
+    left: auto;
+    right: auto;
+    margin-left: -18px; /* Re-apply negative margin if needed for full width */
+    margin-right: -18px;
     border-radius: 5px; /* Normal radius when expanded */
+    backdrop-filter: none; /* Remove blur when not overlaying */
+    background: transparent; /* Make background transparent again */
 }
 
 .show-more-button:hover {
     background-color: rgba(37, 99, 235, 0.05); /* Subtle hover */
+    backdrop-filter: none; /* Ensure hover doesn't bring back blur */
 }
 
 .show-more-button svg { /* Style for potential SVG icons */
@@ -200,21 +215,37 @@ h2 {
     stroke-width: 2;
 }
 
-.clipboard-item pre {
+/* Container for the main content (Quill viewer/pre tag) */
+/* We might not need a dedicated container anymore if flex-direction changes */
+.item-content-container {
+    flex-grow: 1; /* Allow content to take space */
+    min-width: 0; /* Prevent flex item overflow */
+    margin-right: 15px; /* Space between content and original button column */
+}
+
+.clipboard-item.expanded .item-content-container {
+     margin-right: 0; /* Remove margin when expanded if buttons move below */
+}
+
+
+.clipboard-item pre,
+.clipboard-item .ql-container.ql-snow { /* Target Quill viewer */
     white-space: pre-wrap;
     word-wrap: break-word;
-    margin: 0;
+    margin: 0 0 10px 0; /* Add margin below content, before buttons */
     font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
     font-size: 1rem;
-    flex-grow: 1;
-    margin-right: 15px;
+    /* flex-grow: 1; Removed, let container handle growth */
+    /* margin-right: 15px; Removed, handled by container or layout */
     color: #222;
     background: transparent;
     border-radius: 4px;
     padding: 0;
     line-height: 1.6;
-    /* 代码高亮 */
-    overflow-x: auto;
+    overflow-x: auto; /* Allow horizontal scroll for code */
+    /* Ensure Quill editor gets proper styling */
+    border: none !important; /* Override Quill border */
+    min-height: 40px; /* Ensure some minimum height */
 }
 
 .clipboard-item pre code {
@@ -225,26 +256,38 @@ h2 {
     font-size: 0.98em;
 }
 
+/* --- Revised Button Layout --- */
 .clipboard-item .item-buttons {
     display: flex;
-    flex-direction: column;
-    gap: 7px;
+    flex-direction: row; /* Arrange buttons horizontally now */
+    flex-wrap: wrap; /* Allow wrapping on small screens if needed */
+    gap: 10px; /* Space between buttons */
     flex-shrink: 0;
-    margin-left: 15px;
-    align-self: flex-start;
+    /* margin-left: 15px; Removed */
+    /* align-self: flex-start; Removed */
+    justify-content: flex-end; /* Align buttons to the right */
+    margin-top: 10px; /* Space above buttons */
+    padding-bottom: 45px; /* Add padding at the bottom to make space for absolute positioned show-more button */
 }
 
-.clipboard-item button {
-    padding: 6px 0;
-    font-size: 0.92rem;
+.clipboard-item.expanded .item-buttons {
+     padding-bottom: 0; /* Remove extra padding when expanded */
+     /* Buttons stay at the end */
+}
+
+/* Common button styles might need adjustment */
+.clipboard-item .item-buttons button { /* Target buttons inside the container */
+    padding: 6px 12px; /* Adjust padding for horizontal layout */
+    font-size: 0.9rem; /* Slightly smaller text */
     cursor: pointer;
     color: white;
     border: none;
     border-radius: 5px;
-    min-width: 70px;
+    min-width: 65px; /* Slightly smaller min-width */
     text-align: center;
     font-weight: 500;
     letter-spacing: 0.5px;
+    /* Remove width constraints if they cause issues */
     box-shadow: 0 1px 4px rgba(37,99,235,0.07);
     transition: background 0.2s;
 }
@@ -295,8 +338,21 @@ h2 {
     background: linear-gradient(90deg, #b91c1c 60%, #ef4444 100%);
 }
 
+/* Overall item layout */
 .clipboard-item {
-    align-items: flex-start;
+    display: flex; /* Keep flex */
+    flex-direction: column; /* Stack content and buttons vertically */
+    align-items: stretch; /* Stretch children */
+    /* align-items: flex-start; Replaced by stretch */
+}
+
+/* Edit mode adjustments */
+.clipboard-item .ql-toolbar.ql-snow { /* Target Quill editor toolbar */
+    padding: 4px 8px !important; /* Reduce toolbar padding */
+    border-bottom: 1px solid #ccc !important;
+}
+.clipboard-item .ql-container.ql-snow { /* Target Quill editor container */
+     min-height: 80px; /* Ensure editor has some height */
 }
 
 /* 响应式优化 */
@@ -334,5 +390,12 @@ h2 {
     }
     #editor-container {
         height: 110px;
+    }
+    .clipboard-item .item-buttons {
+        justify-content: flex-start; /* Align buttons left on mobile */
+        padding-bottom: 40px; /* Adjust padding for mobile */
+    }
+     .clipboard-item.expanded .item-buttons {
+        padding-bottom: 0;
     }
 }
