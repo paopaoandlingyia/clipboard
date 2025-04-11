@@ -340,7 +340,20 @@ function renderClipboardList(items) {
         // Add content and buttons to the item container
         itemDiv.appendChild(contentContainer); // Add the content container
         itemDiv.appendChild(buttonContainer); // Add the right-side button container
-        itemDiv.appendChild(showMoreBtn); // Add the show-more button at the bottom
+
+        // Check if content overflows AFTER content is added and BEFORE button is added
+        // We need to temporarily add to DOM or calculate styles to get scrollHeight correctly.
+        // A simpler check against the known CSS max-height (110px) is often sufficient.
+        // Note: scrollHeight might not be perfect until rendered, but good enough for this check.
+        const needsShowMore = contentContainer.scrollHeight > 110; // Check against CSS max-height
+
+        if (needsShowMore) {
+            itemDiv.appendChild(showMoreBtn); // Only add button if needed
+            console.log(`Item ${item.id}: Content scrollHeight (${contentContainer.scrollHeight}) > 110, showing button.`);
+        } else {
+             console.log(`Item ${item.id}: Content scrollHeight (${contentContainer.scrollHeight}) <= 110, hiding button.`);
+        }
+
         clipboardListElement.appendChild(itemDiv);
     });
      statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
