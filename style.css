@@ -232,15 +232,11 @@ h2 {
 }
 
 /* Container for the main content (Quill viewer/pre tag) */
-/* We might not need a dedicated container anymore if flex-direction changes */
 .item-content-container {
     flex-grow: 1; /* Allow content to take space */
     min-width: 0; /* Prevent flex item overflow */
-    margin-right: 15px; /* Space between content and original button column */
-}
-
-.clipboard-item.expanded .item-content-container {
-     margin-right: 0; /* Remove margin when expanded if buttons move below */
+    /* margin-right: 15px; Removed, buttons are now absolutely positioned */
+    padding-right: 85px; /* Add padding to the right to avoid overlap with absolute buttons */
 }
 
 
@@ -272,40 +268,38 @@ h2 {
     font-size: 0.98em;
 }
 
-/* --- Revised Button Layout --- */
+/* --- Button Layout: Top Right Corner --- */
 .clipboard-item .item-buttons {
+    position: absolute; /* Position absolutely within the item */
+    top: 15px; /* Distance from top */
+    right: 15px; /* Distance from right */
     display: flex;
-    flex-direction: row; /* Arrange buttons horizontally now */
-    flex-wrap: wrap; /* Allow wrapping on small screens if needed */
-    gap: 10px; /* Space between buttons */
+    flex-direction: column; /* Stack buttons vertically again */
+    gap: 7px; /* Space between buttons */
     flex-shrink: 0;
-    /* margin-left: 15px; Removed */
-    /* align-self: flex-start; Removed */
-    justify-content: flex-end; /* Align buttons to the right */
-    margin-top: 10px; /* Space above buttons */
-    padding-bottom: 45px; /* Add padding at the bottom to make space for absolute positioned show-more button */
+    align-items: flex-end; /* Align buttons to the right edge */
+    z-index: 3; /* Ensure buttons are above content and fade */
+    /* Remove properties related to flow layout */
+    /* margin-top: 10px; */
+    /* padding-bottom: 45px; */
 }
 
-.clipboard-item.expanded .item-buttons {
-     padding-bottom: 0; /* Remove extra padding when expanded */
-     /* Buttons stay at the end */
-}
-
-/* Common button styles might need adjustment */
-.clipboard-item .item-buttons button { /* Target buttons inside the container */
-    padding: 6px 12px; /* Adjust padding for horizontal layout */
-    font-size: 0.9rem; /* Slightly smaller text */
+/* Adjust button styles if needed for vertical stacking */
+.clipboard-item .item-buttons button {
+    padding: 6px 0; /* Back to vertical padding */
+    font-size: 0.92rem; /* Restore original size */
     cursor: pointer;
     color: white;
     border: none;
     border-radius: 5px;
-    min-width: 65px; /* Slightly smaller min-width */
+    min-width: 70px; /* Restore original min-width */
     text-align: center;
     font-weight: 500;
     letter-spacing: 0.5px;
-    /* Remove width constraints if they cause issues */
     box-shadow: 0 1px 4px rgba(37,99,235,0.07);
     transition: background 0.2s;
+    /* Ensure buttons stack correctly */
+    width: 70px; /* Explicit width might help alignment */
 }
 
 .clipboard-item button:hover {
@@ -359,7 +353,11 @@ h2 {
     display: flex; /* Keep flex */
     flex-direction: column; /* Stack content and buttons vertically */
     align-items: stretch; /* Stretch children */
-    /* align-items: flex-start; Replaced by stretch */
+    padding-bottom: 45px; /* Add padding at bottom ONLY IF show-more is still absolute */
+}
+
+.clipboard-item.expanded {
+    padding-bottom: 18px; /* Restore original padding when expanded */
 }
 
 /* Edit mode adjustments */
@@ -411,7 +409,22 @@ h2 {
         justify-content: flex-start; /* Align buttons left on mobile */
         padding-bottom: 40px; /* Adjust padding for mobile */
     }
-     .clipboard-item.expanded .item-buttons {
-        padding-bottom: 0;
+    .clipboard-item .item-buttons {
+        /* Adjust mobile button positioning if needed */
+         top: 10px;
+         right: 10px;
+         gap: 5px;
     }
+     .clipboard-item .item-buttons button {
+        min-width: 60px;
+        width: 60px;
+        padding: 5px 0;
+        font-size: 0.85rem;
+     }
+     .item-content-container {
+        padding-right: 75px; /* Adjust padding for mobile buttons */
+     }
+     .clipboard-item {
+         padding-bottom: 40px; /* Adjust padding for mobile */
+     }
 }
