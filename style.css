@@ -212,6 +212,7 @@ h2 {
     gap: 7px;
     flex-shrink: 0;
     margin-left: 15px;
+    align-self: flex-start;
 }
 
 .clipboard-item button {
@@ -528,8 +529,11 @@ h1, h2 {
 
 /* Adjust content container */
 .clipboard-item .item-content-container {
-    flex-grow: 1; /* Allow content area to grow */
-    margin-right: 15px; /* Keep space before buttons */
+    flex-grow: 1;
+    margin-right: 15px;
+    max-height: 100px;
+    overflow: auto;
+    min-width: 0;
 }
 
 
