@@ -180,10 +180,11 @@ h2 {
     padding: 8px 0;
     text-align: center;
     background: rgba(255,255,255,0.8); /* Slightly opaque background */
-    height: 35px; /* Explicit height to prevent stutter */
-    display: flex; /* Use flex to center content vertically */
-    align-items: center;
-    justify-content: center;
+    height: 35px; /* Explicit height */
+    line-height: 35px; /* Match line-height to height */
+    /* display: flex; Might not be needed if line-height centers text */
+    /* align-items: center; */
+    /* justify-content: center; */
     backdrop-filter: blur(2px); /* Frosted glass effect */
     border: none;
     border-top: 1px solid #e0e7ef; /* Separator line */
@@ -213,9 +214,11 @@ h2 {
     backdrop-filter: none; /* Remove blur when not overlaying */
     background: transparent; /* Make background transparent again */
     height: 35px; /* Maintain explicit height */
-    display: flex; /* Use flex to center content vertically */
-    align-items: center;
-    justify-content: center;
+    line-height: 35px; /* Match line-height */
+    /* display: flex; */
+    /* align-items: center; */
+    /* justify-content: center; */
+    margin-top: 10px; /* Re-introduce margin-top for spacing when expanded */
 }
 
 .show-more-button:hover {
@@ -241,10 +244,10 @@ h2 {
 
 
 .clipboard-item pre,
-.clipboard-item .ql-container.ql-snow { /* Target Quill viewer */
+.clipboard-item .item-content-container .ql-container.ql-snow { /* Be more specific for Quill container */
     white-space: pre-wrap;
     word-wrap: break-word;
-    margin: 0 0 10px 0; /* Add margin below content, before buttons */
+    margin: 0; /* Ensure no margin */
     font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
     font-size: 1rem;
     /* flex-grow: 1; Removed, let container handle growth */
@@ -353,11 +356,10 @@ h2 {
     display: flex; /* Keep flex */
     flex-direction: column; /* Stack content and buttons vertically */
     align-items: stretch; /* Stretch children */
-    padding-bottom: 45px; /* Add padding at bottom ONLY IF show-more is still absolute */
 }
 
 .clipboard-item.expanded {
-    padding-bottom: 18px; /* Restore original padding when expanded */
+    /* No specific padding change needed for expansion anymore */
 }
 
 /* Edit mode adjustments */
@@ -367,6 +369,8 @@ h2 {
 }
 .clipboard-item .ql-container.ql-snow { /* Target Quill editor container */
      min-height: 80px; /* Ensure editor has some height */
+     height: auto !important; /* Override any potential inline styles or other rules */
+     max-height: none !important; /* Ensure no max-height limit */
 }
 
 /* 响应式优化 */
@@ -425,6 +429,6 @@ h2 {
         padding-right: 75px; /* Adjust padding for mobile buttons */
      }
      .clipboard-item {
-         padding-bottom: 40px; /* Adjust padding for mobile */
+         /* padding-bottom: 40px; Removed */
      }
 }
