@@ -88,23 +88,19 @@ function renderClipboardList(items) {
         itemDiv.className = 'clipboard-item';
         itemDiv.dataset.id = item.id;
         
-        // Add expand/collapse button
-        const expandBtn = document.createElement('button');
-        expandBtn.className = 'expand-button';
-        // SVG箭头icon，默认向下
-        expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        expandBtn.addEventListener('click', (e) => {
+        // Add "Show More" / "Show Less" button
+        const showMoreBtn = document.createElement('button');
+        showMoreBtn.className = 'show-more-button';
+        showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; // Initial state: Show More
+        showMoreBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             itemDiv.classList.toggle('expanded');
             if (itemDiv.classList.contains('expanded')) {
-                // 向上箭头
-                expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                showMoreBtn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; // State: Show Less
             } else {
-                // 向下箭头
-                expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; // State: Show More
             }
         });
-        // itemDiv.appendChild(expandBtn); // Moved to button container
 
         // --- Content Display ---
         const contentContainer = document.createElement('div');
@@ -322,10 +318,12 @@ function renderClipboardList(items) {
         buttonContainer.appendChild(deleteButton);
         buttonContainer.appendChild(saveButton); // Add hidden buttons
         buttonContainer.appendChild(cancelButton);
+        // buttonContainer.appendChild(expandBtn); // Removed old append
 
         // Add content and buttons to the item container
         itemDiv.appendChild(contentContainer); // Add the content container
-        itemDiv.appendChild(buttonContainer);
+        itemDiv.appendChild(buttonContainer); // Add the right-side button container
+        itemDiv.appendChild(showMoreBtn); // Add the show-more button at the bottom
         clipboardListElement.appendChild(itemDiv);
     });
      statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
