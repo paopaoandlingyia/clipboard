@@ -8,7 +8,7 @@ body {
 }
 
 #app {
-    max-width: 900px;
+    max-width: 1100px; /* Increased width */
     margin: 32px auto 20px auto;
     padding: 32px 24px 24px 24px;
     background: rgba(255,255,255,0.98);
@@ -158,27 +158,26 @@ h2 {
 }
 
 .expand-button {
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    background: linear-gradient(90deg, #2563eb 60%, #38bdf8 100%);
+    /* Removed absolute positioning */
+    background: linear-gradient(90deg, #64748b 60%, #334155 100%); /* Use a neutral color */
     color: white;
     border: none;
-    border-radius: 50%;
-    width: 32px;
+    border-radius: 5px; /* Match other buttons */
+    width: 100%; /* Full width within the button column */
     height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 1;
-    box-shadow: 0 2px 8px rgba(37,99,235,0.10);
+    /* z-index: 1; */ /* No longer needed */
+    box-shadow: 0 1px 4px rgba(37,99,235,0.07); /* Match other buttons */
     font-size: 1.2rem;
     transition: background 0.2s;
+    margin-top: 7px; /* Add space above */
 }
 
 .expand-button:hover {
-    background: linear-gradient(90deg, #1d4ed8 60%, #0ea5e9 100%);
+    background: linear-gradient(90deg, #334155 60%, #64748b 100%); /* Adjust hover color */
 }
 
 .clipboard-item pre {
@@ -531,8 +530,7 @@ h1, h2 {
 .clipboard-item .item-content-container {
     flex-grow: 1;
     margin-right: 15px;
-    max-height: 100px;
-    overflow: auto;
+    /* Removed max-height and overflow to show full content when expanded */
     min-width: 0;
 }
 
