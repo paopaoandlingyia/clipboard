@@ -104,7 +104,7 @@ function renderClipboardList(items) {
                 expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
             }
         });
-        itemDiv.appendChild(expandBtn);
+        // itemDiv.appendChild(expandBtn); // Moved to button container
 
         // --- Content Display ---
         const contentContainer = document.createElement('div');
