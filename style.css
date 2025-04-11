@@ -130,6 +130,8 @@ h2 {
     overflow: hidden;
     position: relative;
     transition: max-height 0.3s ease-out, box-shadow 0.2s; /* Animate max-height */
+    /* Ensure padding is consistent */
+    box-sizing: border-box;
 }
 
 .clipboard-item:hover {
@@ -138,9 +140,14 @@ h2 {
 }
 
 .clipboard-item.expanded {
-    max-height: 1000px; /* Set a large max-height for expansion */
-    /* Allow overflow if content is truly huge */
-    /* overflow: visible; Might be needed depending on content */
+    /* max-height: 1000px; /* Revert back to height: auto */
+    height: auto; /* Let content determine height when expanded */
+    max-height: none; /* Remove max-height constraint when expanded */
+    /* Adjust transition to target height potentially, though 'auto' is tricky */
+    /* transition: height 0.3s ease-out, box-shadow 0.2s; */ /* Transitioning height:auto is not directly supported, max-height was better for this */
+    /* Keep max-height transition for visual effect, but set expanded max-height very large */
+    max-height: 5000px; /* Use a very large max-height for transition effect */
+    transition: max-height 0.35s ease-out, box-shadow 0.2s;
 }
 
 /* Fade-out effect at the bottom when collapsed */
@@ -173,6 +180,10 @@ h2 {
     padding: 8px 0;
     text-align: center;
     background: rgba(255,255,255,0.8); /* Slightly opaque background */
+    height: 35px; /* Explicit height to prevent stutter */
+    display: flex; /* Use flex to center content vertically */
+    align-items: center;
+    justify-content: center;
     backdrop-filter: blur(2px); /* Frosted glass effect */
     border: none;
     border-top: 1px solid #e0e7ef; /* Separator line */
@@ -183,10 +194,11 @@ h2 {
     transition: background-color 0.2s, bottom 0.3s ease-out; /* Animate bottom */
     position: absolute; /* Keep absolute for positioning */
     bottom: 0px; /* Stick to bottom when collapsed */
-    left: 0; /* Use left/right 0 instead of width calc */
+    left: 0;
     right: 0;
     border-radius: 0 0 10px 10px; /* Match bottom corners */
     z-index: 2; /* Ensure it's above the fade effect */
+    box-sizing: border-box; /* Include padding/border in height */
 }
 
 /* When expanded, button should be part of the normal flow */
@@ -195,11 +207,15 @@ h2 {
     bottom: auto; /* Remove bottom positioning */
     left: auto;
     right: auto;
-    margin-left: -18px; /* Re-apply negative margin if needed for full width */
+    margin-left: -18px;
     margin-right: -18px;
     border-radius: 5px; /* Normal radius when expanded */
     backdrop-filter: none; /* Remove blur when not overlaying */
     background: transparent; /* Make background transparent again */
+    height: 35px; /* Maintain explicit height */
+    display: flex; /* Use flex to center content vertically */
+    align-items: center;
+    justify-content: center;
 }
 
 .show-more-button:hover {
