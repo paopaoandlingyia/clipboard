@@ -1,6 +1,39 @@
 import { createClient } from '@supabase/supabase-js';
 import Quill from 'quill'; // Import Quill
 
+// --- Toast提示函数 ---
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+        background: ${type === 'success' ? 'linear-gradient(90deg,#22c55e,#16a34a)' : type === 'error' ? 'linear-gradient(90deg,#ef4444,#b91c1c)' : 'linear-gradient(90deg,#2563eb,#38bdf8)'};
+        color: #fff;
+        padding: 12px 28px;
+        border-radius: 24px;
+        margin-top: 8px;
+        font-size: 1.08rem;
+        font-weight: 500;
+        box-shadow: 0 2px 12px rgba(37,99,235,0.13);
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s, transform 0.3s;
+        pointer-events: auto;
+        display: inline-block;
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    }, 10);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(20px)';
+        setTimeout(() => container.removeChild(toast), 300);
+    }, 1800);
+}
+
 // --- Configuration ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -58,11 +91,18 @@ function renderClipboardList(items) {
         // Add expand/collapse button
         const expandBtn = document.createElement('button');
         expandBtn.className = 'expand-button';
-        expandBtn.innerHTML = '↓';
+        // SVG箭头icon，默认向下
+        expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
         expandBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             itemDiv.classList.toggle('expanded');
-            expandBtn.innerHTML = itemDiv.classList.contains('expanded') ? '↑' : '↓';
+            if (itemDiv.classList.contains('expanded')) {
+                // 向上箭头
+                expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            } else {
+                // 向下箭头
+                expandBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            }
         });
         itemDiv.appendChild(expandBtn);
 
@@ -156,6 +196,7 @@ function renderClipboardList(items) {
                 textToCopy = textToCopy.trim();
 
                 await navigator.clipboard.writeText(textToCopy);
+                showToast('已复制到剪贴板', 'success');
                 copyButton.textContent = 'Copied!';
                 copyButton.disabled = true;
                 setTimeout(() => {
@@ -419,6 +460,7 @@ async function addNewItem() {
              quillEditor.setContents([{ insert: '\n' }]); // Clear the editor on success
             console.log('New item added successfully.');
             statusElement.textContent = 'Item added!';
+            showToast('添加成功', 'success');
             // Realtime should handle the UI update
         }
 
@@ -445,6 +487,7 @@ async function deleteItem(id) {
 
         console.log(`Item ${id} deleted successfully.`);
         statusElement.textContent = `Item ${id} deleted.`;
+        showToast('删除成功', 'success');
         // No need to manually remove from list here, realtime 'DELETE' event will handle it
 
     } catch (error) {
