@@ -227,6 +227,17 @@ function renderClipboardList(items) {
         let itemEditorInstance = null; // To hold the Quill instance for editing this specific item
 
         editButton.addEventListener('click', () => {
+            // --- Ensure the item is expanded before editing ---
+            if (!itemDiv.classList.contains('expanded')) {
+                itemDiv.classList.add('expanded');
+                 // Update the show more button text immediately if needed
+                 const btn = itemDiv.querySelector('.show-more-button');
+                 if (btn) {
+                     btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                 }
+            }
+            // --- End expansion check ---
+
             // Initialize Quill editor for this item
             contentContainer.innerHTML = ''; // Clear current content (viewer/pre)
             const editDiv = document.createElement('div');
