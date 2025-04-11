@@ -158,6 +158,8 @@ h2 {
 .clipboard-item.expanded .item-content-container {
     max-height: 5000px; /* Large value for expansion animation */
     overflow: visible; /* Show all content */
+    mask-image: none;
+    -webkit-mask-image: none;
 }
 
 /* --- Content Styling (Inside Container) --- */
