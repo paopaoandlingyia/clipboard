@@ -141,7 +141,7 @@ h2 {
 
 /* --- Content Container (Handles collapsing) --- */
 .item-content-container {
-    flex-grow: 1; /* Takes available space */
+    /* flex-grow: 1; /* Removed: Let height be determined by content */
     min-width: 0; /* Prevents flex overflow */
     padding-right: 85px; /* Space for absolute positioned buttons (保持不变) */
     max-height: 110px; /* Initial collapsed height (保持不变) */
