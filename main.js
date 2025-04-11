@@ -340,22 +340,37 @@ function renderClipboardList(items) {
         // Add content and buttons to the item container
         itemDiv.appendChild(contentContainer); // Add the content container
         itemDiv.appendChild(buttonContainer); // Add the right-side button container
-
-        // Check if content overflows AFTER content is added and BEFORE button is added
-        // We need to temporarily add to DOM or calculate styles to get scrollHeight correctly.
-        // A simpler check against the known CSS max-height (110px) is often sufficient.
-        // Note: scrollHeight might not be perfect until rendered, but good enough for this check.
-        const needsShowMore = contentContainer.scrollHeight > 110; // Check against CSS max-height
-
-        if (needsShowMore) {
-            itemDiv.appendChild(showMoreBtn); // Only add button if needed
-            console.log(`Item ${item.id}: Content scrollHeight (${contentContainer.scrollHeight}) > 110, showing button.`);
-        } else {
-             console.log(`Item ${item.id}: Content scrollHeight (${contentContainer.scrollHeight}) <= 110, hiding button.`);
-        }
-
+        itemDiv.appendChild(showMoreBtn); // Add the show-more button at the bottom
         clipboardListElement.appendChild(itemDiv);
     });
+
+    // --- Post-render check for "Show More" button visibility ---
+    // This needs to run AFTER all items are in the DOM so scrollHeight is accurate.
+    // Use setTimeout with 0 delay to push this check to the end of the event queue,
+    // ensuring the browser has had a chance to render.
+    setTimeout(() => {
+        const renderedItems = clipboardListElement.querySelectorAll('.clipboard-item');
+        renderedItems.forEach(renderedItemDiv => {
+            const contentContainer = renderedItemDiv.querySelector('.item-content-container');
+            const showMoreBtn = renderedItemDiv.querySelector('.show-more-button');
+            if (contentContainer && showMoreBtn) {
+                // Check if content's scroll height exceeds the collapsed container's client height (or the CSS max-height)
+                // Adding a small buffer (e.g., 1-2px) can help with subpixel rendering differences.
+                const threshold = 110; // Use the CSS max-height value
+                const isOverflowing = contentContainer.scrollHeight > threshold + 2; // Add 2px buffer
+
+                if (!isOverflowing) {
+                    showMoreBtn.style.display = 'none'; // Hide button if not overflowing
+                    // console.log(`Item ${renderedItemDiv.dataset.id}: Hiding button (Scroll: ${contentContainer.scrollHeight}, Threshold: ${threshold})`);
+                } else {
+                    showMoreBtn.style.display = 'block'; // Ensure button is visible if overflowing (might be hidden from previous render)
+                    // console.log(`Item ${renderedItemDiv.dataset.id}: Showing button (Scroll: ${contentContainer.scrollHeight}, Threshold: ${threshold})`);
+                }
+            }
+        });
+        console.log("Post-render check for 'Show More' buttons completed.");
+    }, 0); // setTimeout 0 ensures this runs after current execution stack clears
+
      statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
 }
 
