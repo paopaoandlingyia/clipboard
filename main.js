@@ -241,7 +241,7 @@ function renderClipboardList(items) {
             // Initialize Quill editor for this item
             contentContainer.innerHTML = ''; // Clear current content (viewer/pre)
             const editDiv = document.createElement('div');
-            editDiv.style.height = '100px'; // Give it some initial height
+            // editDiv.style.height = '100px'; // REMOVED fixed height
             contentContainer.appendChild(editDiv);
 
             itemEditorInstance = new Quill(editDiv, {
