@@ -160,6 +160,7 @@ h2 {
     overflow: visible; /* Show all content */
     mask-image: none;
     -webkit-mask-image: none;
+    height: auto; /* Add this line to ensure height adjusts to content */
 }
 
 /* --- Content Styling (Inside Container) --- */
