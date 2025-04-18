@@ -73,20 +73,30 @@ let clipboardItems = []; // 当前剪贴板项目列表
 function renderItemContent(container, contentData, itemId) {
     container.innerHTML = '';
     try {
-        let displayText = '';
         if (typeof contentData === 'string') {
-            displayText = contentData;
+            // 纯文本内容
             const pre = document.createElement('pre');
-            pre.textContent = displayText;
+            pre.textContent = contentData;
             container.appendChild(pre);
         } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
-            // 用临时 Quill 实例将 Delta 转为纯文本
-            const tempQuill = new Quill(document.createElement('div'));
-            tempQuill.setContents(contentData);
-            displayText = tempQuill.getText();
-            const pre = document.createElement('pre');
-            pre.textContent = displayText.replace(/\n$/, '');
-            container.appendChild(pre);
+            // Delta 内容，支持图片和文本
+            contentData.ops.forEach(op => {
+                if (op.insert && typeof op.insert === 'object' && op.insert.image) {
+                    // 图片内容
+                    const img = document.createElement('img');
+                    img.src = op.insert.image;
+                    img.style.maxWidth = '100%';
+                    img.style.display = 'block';
+                    img.style.margin = '8px 0';
+                    container.appendChild(img);
+                } else if (typeof op.insert === 'string') {
+                    // 文本内容
+                    const span = document.createElement('span');
+                    // 保留换行
+                    span.textContent = op.insert;
+                    container.appendChild(span);
+                }
+            });
         } else {
             console.error(`项目 ${itemId}: 内容格式未知`, contentData);
             const pre = document.createElement('pre');
