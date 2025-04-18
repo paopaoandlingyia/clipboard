@@ -74,7 +74,7 @@ if (supabaseUrl && supabaseAnonKey) {
 let clipboardItems = []; // To hold the current list of items
 
 // --- Store for item-specific Quill editor instances (only when editing) ---
-const activeItemEditors = {}; // Key: item.id, Value: Quill instance
+// REMOVED: const activeItemEditors = {};
 
 // Helper function to render item content (used initially and after exiting edit mode)
 // OPTIMIZED: Renders plain text or simple HTML for read-only view, avoids Quill instance per item.
@@ -144,7 +144,7 @@ function renderItemContent(container, contentData, itemId) {
 
 
 // --- Function: Render the list of clipboard items ---
-// OPTIMIZED: Uses event delegation and simplified rendering
+// OPTIMIZED: Uses event delegation and simplified rendering, NO EDIT functionality
 function renderClipboardList(items) {
     if (!clipboardListElement) return;
     clipboardListElement.innerHTML = ''; // Clear the current list display
@@ -171,13 +171,10 @@ function renderClipboardList(items) {
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'item-buttons';
 
-        // Create Buttons (structure only, listeners added via delegation)
+        // Create Buttons (structure only, listeners added via delegation) - REMOVED Edit/Save/Cancel
         buttonContainer.innerHTML = `
-            <button class="edit-button">Edit</button>
             <button class="copy-button">Copy</button>
             <button class="delete-button">Delete</button>
-            <button class="save-button" style="display: none;">Save</button>
-            <button class="cancel-button" style="display: none;">Cancel</button>
         `;
 
          // Add "Show More" / "Show Less" button
@@ -215,92 +212,6 @@ function renderClipboardList(items) {
     statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
 }
 
-// Helper function to exit edit mode for a specific item
-function exitEditMode(itemId) {
-    const itemDiv = clipboardListElement.querySelector(`.clipboard-item[data-id='${itemId}']`);
-    if (!itemDiv) return;
-
-    const contentContainer = itemDiv.querySelector('.item-content-container');
-    const buttonContainer = itemDiv.querySelector('.item-buttons');
-
-    // Destroy the item's Quill editor instance
-    if (activeItemEditors[itemId]) {
-        // Quill doesn't have a formal destroy. Remove the editor element it created.
-        const editorElement = contentContainer.querySelector('.ql-container');
-        if (editorElement) editorElement.parentElement.remove(); // Remove the Quill structure
-        delete activeItemEditors[itemId]; // Remove from our store
-    }
-
-    // Re-render the item in read-only mode using the helper
-    const itemData = clipboardItems.find(i => i.id == itemId); // Get data from state
-    if (itemData) {
-        renderItemContent(contentContainer, itemData.content, itemId);
-    } else {
-         contentContainer.innerHTML = '<pre>[Error: Item data not found]</pre>'; // Fallback
-    }
-
-
-    // Toggle button visibility back using class selectors within the itemDiv
-    const editButton = buttonContainer.querySelector('.edit-button');
-    const copyButton = buttonContainer.querySelector('.copy-button');
-    const deleteButton = buttonContainer.querySelector('.delete-button');
-    const saveButton = buttonContainer.querySelector('.save-button');
-    const cancelButton = buttonContainer.querySelector('.cancel-button');
-
-    if (editButton) editButton.style.display = 'inline-block';
-    if (copyButton) copyButton.style.display = 'inline-block';
-    if (deleteButton) deleteButton.style.display = 'inline-block';
-    if (saveButton) saveButton.style.display = 'none';
-    if (cancelButton) cancelButton.style.display = 'none';
-
-    // Reset save button state just in case
-    if (saveButton) {
-        saveButton.textContent = 'Save';
-        saveButton.disabled = false;
-    }
-    if (cancelButton) {
-        cancelButton.disabled = false;
-    }
-}
-
-
-// --- Function: Update an item in Supabase ---
-// newContent is now expected to be a Quill Delta object
-async function updateItem(id, newContentDelta) {
-    if (!supabase) return;
-    statusElement.textContent = `Updating item ${id}...`;
-    console.log(`Attempting to update item ${id} with Delta:`, JSON.stringify(newContentDelta));
-
-    try {
-        // Save the Delta object directly
-        const { data, error } = await supabase
-            .from(TABLE_NAME)
-            .update({ content: newContentDelta }) // Save the Delta object
-            .eq('id', id)
-            .select();
-
-        if (error) {
-             // Check for specific errors, e.g., RLS policy violation
-             if (error.message.includes('violates row-level security policy')) {
-                 console.error(`RLS Error updating item ${id}: Make sure UPDATE policy is enabled.`);
-                 statusElement.textContent = `Error: Cannot update item ${id}. Check permissions.`;
-             } else {
-                 throw error; // Re-throw other errors
-             }
-        } else {
-            console.log(`Item ${id} updated successfully. Response data:`, data);
-            statusElement.textContent = `Item ${id} updated.`;
-            // Realtime should handle the UI update, or fetchClipboardItems() in handleRealtimeUpdate
-        }
-
-    } catch (error) {
-        console.error(`Error updating item ${id}:`, error);
-        statusElement.textContent = `Error updating item ${id}: ${error.message}`;
-        // We might need to signal the UI to re-enable buttons or show an error state
-    }
-}
-
-
 // --- Function: Fetch all clipboard items from Supabase ---
 async function fetchClipboardItems() {
     if (!supabase) return;
@@ -309,13 +220,13 @@ async function fetchClipboardItems() {
         const { data, error } = await supabase
             .from(TABLE_NAME)
             .select('*') // Select all columns (id, content, created_at)
-            .order('created_at', { ascending: true }); // Order by creation time, oldest first
+            .order('created_at', { ascending: false }); // CHANGED: Order by creation time, newest first
 
         if (error) throw error;
 
         clipboardItems = data || []; // Update our local state
         renderClipboardList(clipboardItems); // Render the fetched items
-        console.log('Clipboard items fetched and rendered.');
+        console.log('Clipboard items fetched and rendered (newest first).');
 
     } catch (error) {
         console.error('Error fetching clipboard items:', error);
@@ -404,7 +315,7 @@ async function deleteItem(id) {
 }
 
 // --- Function: Handle Realtime Updates ---
-// OPTIMIZED: Modifies local state directly instead of always refetching
+// OPTIMIZED: Modifies local state directly, newest first, no edit logic
 function handleRealtimeUpdate(payload) {
     console.log('Realtime change received:', payload);
     statusElement.textContent = 'Realtime update received...';
@@ -413,11 +324,9 @@ function handleRealtimeUpdate(payload) {
     // --- Handling INSERT ---
     if (payload.eventType === 'INSERT') {
         const newItem = payload.new;
-        // Add to our local state, maintaining sort order (assuming ascending createdAt)
-        clipboardItems.push(newItem); // Add to the end
-        // For descending order, use unshift(newItem);
-        // Or, for robust sorting: clipboardItems.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        console.log(`Item ${newItem.id} inserted via realtime.`);
+        // Add to the beginning of our local state for newest first
+        clipboardItems.unshift(newItem); // CHANGED: Add to the start
+        console.log(`Item ${newItem.id} inserted via realtime (added to top).`);
         statusElement.textContent = `New item added.`;
         needsRender = true;
     }
@@ -430,26 +339,19 @@ function handleRealtimeUpdate(payload) {
             console.log(`Item ${deletedItemId} removed via realtime.`);
             statusElement.textContent = `Item ${deletedItemId} removed.`;
              needsRender = true;
-             // If the deleted item was being edited, cancel edit mode
-             if (activeItemEditors[deletedItemId]) {
-                 exitEditMode(deletedItemId); // Clean up editor state
-             }
+             // REMOVED: Check if the deleted item was being edited
+             // if (activeItemEditors[deletedItemId]) { ... }
         }
     }
     // --- Handling UPDATE ---
+    // NOTE: Since we removed editing, UPDATE might be less common unless done externally.
+    // The logic still works to update the item in the list if needed.
     else if (payload.eventType === 'UPDATE') {
         const updatedItem = payload.new;
         const index = clipboardItems.findIndex(item => item.id === updatedItem.id);
         if (index !== -1) {
-            // If the item being updated is currently in edit mode locally,
-            // we might want to either discard local changes or prevent the update,
-            // or merge. For simplicity, we'll just update the data and re-render.
-            // If it was being edited, exitEditMode will be called by the render logic implicitly,
-            // or we can call it explicitly here.
-            if (activeItemEditors[updatedItem.id]) {
-                 console.log(`Item ${updatedItem.id} was updated remotely while being edited locally. Exiting edit mode.`);
-                 exitEditMode(updatedItem.id); // Exit edit mode before updating data
-            }
+            // REMOVED: Check if the item being updated is currently in edit mode locally
+            // if (activeItemEditors[updatedItem.id]) { ... }
             clipboardItems[index] = updatedItem;
             console.log(`Item ${updatedItem.id} updated via realtime.`);
             statusElement.textContent = `Item ${updatedItem.id} updated.`;
@@ -755,84 +657,29 @@ if (supabase && editorContainer) {
              return;
          }
 
-        const contentContainer = itemDiv.querySelector('.item-content-container');
-        const buttonContainer = itemDiv.querySelector('.item-buttons');
-        const showMoreButton = itemDiv.querySelector('.show-more-button'); // Get show more button
+        // REMOVED: References to contentContainer, buttonContainer, showMoreButton as they are less needed here
+        // const contentContainer = itemDiv.querySelector('.item-content-container');
+        // const buttonContainer = itemDiv.querySelector('.item-buttons');
+        // const showMoreButton = itemDiv.querySelector('.show-more-button');
 
 
         // --- Handle Button Clicks ---
 
-        // Edit Button
-        if (target.classList.contains('edit-button')) {
-             // Ensure item is expanded before editing
-             if (!itemDiv.classList.contains('expanded') && showMoreButton && showMoreButton.style.display !== 'none') {
-                 itemDiv.classList.add('expanded');
-                 showMoreButton.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-             }
+        // REMOVED: Edit Button handler
+        // if (target.classList.contains('edit-button')) { ... }
 
-             contentContainer.innerHTML = ''; // Clear current content
-             const editDiv = document.createElement('div');
-             contentContainer.appendChild(editDiv);
+        // REMOVED: Save Button handler
+        // else if (target.classList.contains('save-button')) { ... }
 
-             const itemEditorInstance = new Quill(editDiv, {
-                 theme: 'snow',
-                 modules: { toolbar: [['bold', 'italic', 'underline'], ['code-block']] }
-             });
-             activeItemEditors[itemId] = itemEditorInstance; // Store the instance
-
-             // Load content
-             let contentToLoad = itemData.content;
-             if (typeof contentToLoad === 'string') {
-                 itemEditorInstance.setText(contentToLoad);
-             } else if (contentToLoad && typeof contentToLoad === 'object' && Array.isArray(contentToLoad.ops)) {
-                 itemEditorInstance.setContents(contentToLoad);
-             } else {
-                 itemEditorInstance.setText('[Error loading content]');
-             }
-
-             // Toggle button visibility
-             buttonContainer.querySelector('.edit-button').style.display = 'none';
-             buttonContainer.querySelector('.copy-button').style.display = 'none';
-             buttonContainer.querySelector('.delete-button').style.display = 'none';
-             buttonContainer.querySelector('.save-button').style.display = 'inline-block';
-             buttonContainer.querySelector('.cancel-button').style.display = 'inline-block';
-        }
-
-        // Save Button
-        else if (target.classList.contains('save-button')) {
-            const itemEditorInstance = activeItemEditors[itemId];
-            if (!itemEditorInstance) return;
-
-            const newDeltaContent = itemEditorInstance.getContents();
-            const saveButton = target;
-            const cancelButton = buttonContainer.querySelector('.cancel-button');
-
-            saveButton.textContent = 'Saving...';
-            saveButton.disabled = true;
-            if (cancelButton) cancelButton.disabled = true;
-
-            await updateItem(itemId, newDeltaContent); // Call Supabase update
-
-            // updateItem doesn't directly call exitEditMode anymore,
-            // Realtime update OR manual call will handle UI refresh.
-            // We manually call exitEditMode here for immediate feedback
-            // in case realtime is slow or fails.
-            exitEditMode(itemId);
-            // Note: Button state reset happens within exitEditMode
-        }
-
-        // Cancel Button
-        else if (target.classList.contains('cancel-button')) {
-            exitEditMode(itemId);
-        }
+        // REMOVED: Cancel Button handler
+        // else if (target.classList.contains('cancel-button')) { ... }
 
         // Delete Button
-        else if (target.classList.contains('delete-button')) {
+        if (target.classList.contains('delete-button')) { // Adjusted: Was 'else if'
             target.disabled = true;
             target.textContent = 'Deleting...';
             await deleteItem(itemId);
             // No need to manually re-enable, realtime DELETE handler will remove the item.
-             // If delete fails, the error handler in deleteItem might re-enable it.
         }
 
         // Copy Button
@@ -873,13 +720,13 @@ if (supabase && editorContainer) {
 
         // Show More Button
         else if (target.classList.contains('show-more-button') || target.closest('.show-more-button')) {
-             const btn = target.closest('.show-more-button'); // Get the button element itself
-             itemDiv.classList.toggle('expanded');
-             if (itemDiv.classList.contains('expanded')) {
-                 btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-             } else {
-                 btn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-             }
+            const btn = target.closest('.show-more-button'); // Get the button element itself
+            itemDiv.classList.toggle('expanded');
+            if (itemDiv.classList.contains('expanded')) {
+                btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            } else {
+                btn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            }
         }
     });
 
