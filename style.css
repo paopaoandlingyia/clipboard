@@ -1,3 +1,25 @@
+:root {
+    /* 颜色变量 */
+    --primary: #2563eb;
+    --primary-light: #38bdf8;
+    --primary-dark: #1d4ed8;
+    --success: #22c55e;
+    --success-dark: #16a34a;
+    --danger: #ef4444;
+    --danger-dark: #b91c1c;
+    --warning: #fbbf24;
+    --warning-dark: #f59e42;
+    --text-main: #222;
+    --text-light: #666;
+    --background-light: #f8fafc;
+    --border-light: #e5e7eb;
+    
+    /* 尺寸变量 */
+    --radius-sm: 5px;
+    --radius-md: 10px;
+    --radius-lg: 18px;
+}
+
 body {
     font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
     margin: 0;
@@ -22,7 +44,7 @@ body {
 
 h1, h2 {
     text-align: center;
-    color: #2563eb;
+    color: var(--primary);
     margin-top: 0;
     font-weight: 700;
     letter-spacing: 1px;
@@ -86,7 +108,7 @@ h2 {
     padding: 12px 0;
     font-size: 1.08rem;
     cursor: pointer;
-    background: linear-gradient(90deg, #2563eb 60%, #38bdf8 100%);
+    background: linear-gradient(90deg, var(--primary) 60%, var(--primary-light) 100%);
     color: white;
     border: none;
     border-radius: 6px;
@@ -98,8 +120,7 @@ h2 {
 }
 
 #addButton:hover {
-    background: linear-gradient(90deg, #1d4ed8 60%, #0ea5e9 100%);
-    box-shadow: 0 4px 16px rgba(37,99,235,0.13);
+    background: linear-gradient(90deg, var(--primary-dark) 60%, var(--primary-light) 100%);
 }
 
 #addButton:disabled {
@@ -281,11 +302,20 @@ h2 {
     transition: color 0.2s; /* Transition color on hover */
     border-radius: 4px; /* Optional: slight rounding */
     box-sizing: border-box;
-    display: block; /* Ensure it takes margin auto correctly */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 6px auto 0 auto;
+    padding: 6px 12px;
+    background-color: rgba(37,99,235,0.05);  /* 轻微背景色 */
+    border-radius: 16px;                     /* 圆角更大 */
+    font-size: 0.85rem;  
     /* display: none; /* Initially hidden, shown by JS if content overflows */
 }
 
 .show-more-button:hover {
+    background-color: rgba(37,99,235,0.1);
     color: #1d4ed8; /* Darker blue on hover */
     text-decoration: underline; /* Add underline on hover */
 }
