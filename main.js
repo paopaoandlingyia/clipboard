@@ -73,7 +73,78 @@ if (supabaseUrl && supabaseAnonKey) {
 // --- State Variable ---
 let clipboardItems = []; // To hold the current list of items
 
+// --- Store for item-specific Quill editor instances (only when editing) ---
+const activeItemEditors = {}; // Key: item.id, Value: Quill instance
+
+// Helper function to render item content (used initially and after exiting edit mode)
+// OPTIMIZED: Renders plain text or simple HTML for read-only view, avoids Quill instance per item.
+function renderItemContent(container, contentData, itemId) {
+    container.innerHTML = ''; // Clear previous content
+    try {
+        let displayText = '';
+        let isHtml = false; // Flag to indicate if we should use innerHTML
+
+        // Check if content is a simple JSON string (likely converted plain text)
+        if (typeof contentData === 'string') {
+            displayText = contentData;
+            const pre = document.createElement('pre');
+            pre.textContent = displayText;
+            container.appendChild(pre);
+        } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
+            // Render Delta: Get plain text representation for display
+            // Create a temporary Quill instance *without* a container element
+            const tempQuill = new Quill(document.createElement('div')); // Temporary, not added to DOM
+            tempQuill.setContents(contentData);
+            displayText = tempQuill.getText(); // Get plain text
+
+            // Display plain text within a <pre> tag to preserve line breaks
+            const pre = document.createElement('pre');
+             // Trim trailing newline often added by getText()
+            pre.textContent = displayText.replace(/\n$/, '');
+            container.appendChild(pre);
+
+            // --- Optional: Alternative using getSemanticHTML (if available & suitable) ---
+            // Note: getSemanticHTML is not a standard Quill API, but demonstrates the idea.
+            // If Quill had such a method or you found a library:
+            // try {
+            //     // Hypothetical: Convert Delta to basic HTML
+            //     displayText = convertDeltaToHtml(contentData); // Replace with actual conversion logic/library
+            //     isHtml = true;
+            // } catch (htmlErr) {
+            //     console.warn(`Item ${itemId}: Could not convert Delta to HTML, falling back to text.`, htmlErr);
+            //     // Fallback to plain text if HTML conversion fails
+            //     const tempQuill = new Quill(document.createElement('div'));
+            //     tempQuill.setContents(contentData);
+            //     displayText = tempQuill.getText().replace(/\n$/, '');
+            //     isHtml = false; // Ensure we use textContent below
+            // }
+            //
+            // if (isHtml) {
+            //     container.innerHTML = displayText; // Set as HTML
+            // } else {
+            //     const pre = document.createElement('pre');
+            //     pre.textContent = displayText; // Set as text
+            //     container.appendChild(pre);
+            // }
+            // --- End Optional Alternative ---
+
+        } else {
+            console.error(`Item ${itemId}: Unknown content format during render`, contentData);
+            const pre = document.createElement('pre');
+            pre.textContent = '[Error: Unknown content format]';
+            container.appendChild(pre);
+        }
+    } catch (e) {
+        console.error(`Error rendering content for item ${itemId}:`, e, contentData);
+        const pre = document.createElement('pre');
+        pre.textContent = `[Error rendering content: ${e.message}]`;
+        container.appendChild(pre);
+    }
+}
+
+
 // --- Function: Render the list of clipboard items ---
+// OPTIMIZED: Uses event delegation and simplified rendering
 function renderClipboardList(items) {
     if (!clipboardListElement) return;
     clipboardListElement.innerHTML = ''; // Clear the current list display
@@ -83,326 +154,113 @@ function renderClipboardList(items) {
         return;
     }
 
+    const fragment = document.createDocumentFragment(); // Use fragment for better performance
+
     items.forEach(item => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'clipboard-item';
-        itemDiv.dataset.id = item.id;
-        
-        // Add "Show More" / "Show Less" button
-        const showMoreBtn = document.createElement('button');
-        showMoreBtn.className = 'show-more-button';
-        showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; // Initial state: Show More
-        showMoreBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            itemDiv.classList.toggle('expanded');
-            if (itemDiv.classList.contains('expanded')) {
-                showMoreBtn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; // State: Show Less
-            } else {
-                showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; // State: Show More
-            }
-        });
+        itemDiv.dataset.id = item.id; // Store ID on the main element
 
         // --- Content Display ---
         const contentContainer = document.createElement('div');
         contentContainer.className = 'item-content-container';
+        // Initial rendering using the optimized function
+        renderItemContent(contentContainer, item.content, item.id);
 
-        // --- Render content based on whether it's Quill Delta or plain text (legacy/converted) ---
-        try {
-            let contentToShow = item.content; // This is now expected to be jsonb
-
-            // Check if content is a simple JSON string (likely converted plain text)
-            if (typeof contentToShow === 'string') {
-                // Render as plain text in a <pre> tag for compatibility
-                 const pre = document.createElement('pre');
-                 pre.textContent = contentToShow; // Display the raw string
-                 contentContainer.appendChild(pre);
-                 console.warn(`Item ${item.id}: Content is a plain string, rendering as text.`);
-
-            } else if (contentToShow && typeof contentToShow === 'object' && Array.isArray(contentToShow.ops)) {
-                 // It looks like a Quill Delta object, render it using a temporary Quill instance
-                const tempEditorDiv = document.createElement('div');
-                contentContainer.appendChild(tempEditorDiv); // Add div to container first
-                const quillViewer = new Quill(tempEditorDiv, {
-                    theme: 'snow', // Use a theme for proper styling
-                    readOnly: true, // Make it non-editable
-                    modules: { toolbar: false } // No toolbar needed for viewing
-                });
-                quillViewer.setContents(contentToShow); // Load the Delta object
-                console.log(`Item ${item.id}: Rendered Delta content.`);
-            } else {
-                 // Handle unexpected content format
-                 console.error(`Item ${item.id}: Unknown content format`, contentToShow);
-                 const pre = document.createElement('pre');
-                 pre.textContent = '[Error: Unknown content format]';
-                 contentContainer.appendChild(pre);
-            }
-
-        } catch (e) {
-             console.error(`Error rendering content for item ${item.id}:`, e, item.content);
-             const pre = document.createElement('pre');
-             pre.textContent = `[Error rendering content: ${e.message}]`;
-             contentContainer.appendChild(pre);
-        }
-
-
-        // --- Buttons ---
+        // --- Buttons Container ---
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'item-buttons';
 
-        // Create Edit Button
-        const editButton = document.createElement('button');
-        editButton.textContent = 'Edit';
-        editButton.className = 'edit-button';
+        // Create Buttons (structure only, listeners added via delegation)
+        buttonContainer.innerHTML = `
+            <button class="edit-button">Edit</button>
+            <button class="copy-button">Copy</button>
+            <button class="delete-button">Delete</button>
+            <button class="save-button" style="display: none;">Save</button>
+            <button class="cancel-button" style="display: none;">Cancel</button>
+        `;
 
-        // Create Save Button (initially hidden)
-        const saveButton = document.createElement('button');
-        saveButton.textContent = 'Save';
-        saveButton.className = 'save-button';
-        saveButton.style.display = 'none'; // Hide initially
+         // Add "Show More" / "Show Less" button
+         const showMoreBtn = document.createElement('button');
+         showMoreBtn.className = 'show-more-button';
+         showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+         // Note: Listener for this will also be handled by delegation
 
-        // Create Cancel Button (initially hidden)
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = 'Cancel';
-        cancelButton.className = 'cancel-button';
-        cancelButton.style.display = 'none'; // Hide initially
+        // Assemble the item
+        itemDiv.appendChild(contentContainer);
+        itemDiv.appendChild(buttonContainer);
+        itemDiv.appendChild(showMoreBtn);
 
-
-        // Create Copy Button
-        const copyButton = document.createElement('button');
-        copyButton.textContent = 'Copy';
-        copyButton.className = 'copy-button';
-        copyButton.addEventListener('click', async () => {
-            let textToCopy = '';
-            try {
-                // Determine the text content to copy
-                let contentData = item.content;
-                if (typeof contentData === 'string') {
-                    textToCopy = contentData; // Legacy plain text
-                } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
-                    // Create a temporary Quill instance to get plain text from Delta
-                    const tempDiv = document.createElement('div');
-                    const tempQuill = new Quill(tempDiv); // No theme/toolbar needed
-                    tempQuill.setContents(contentData);
-                    textToCopy = tempQuill.getText(); // Get plain text
-                } else {
-                    textToCopy = '[Unsupported Content Format]'; // Fallback
-                }
-
-                // Trim potential excessive newlines often added by getText()
-                textToCopy = textToCopy.trim();
-
-                await navigator.clipboard.writeText(textToCopy);
-                showToast('已复制到剪贴板', 'success');
-                copyButton.textContent = 'Copied!';
-                copyButton.disabled = true;
-                setTimeout(() => {
-                    copyButton.textContent = 'Copy';
-                    copyButton.disabled = false;
-                }, 1500); // Reset after 1.5 seconds
-            } catch (err) {
-                console.error('Failed to copy text: ', err);
-                // Optionally show an error message to the user
-                copyButton.textContent = 'Error';
-                 setTimeout(() => {
-                    copyButton.textContent = 'Copy';
-                }, 1500);
-            }
-        });
-
-        // Create Delete Button
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = 'Delete';
-        deleteButton.className = 'delete-button';
-        deleteButton.addEventListener('click', async (e) => {
-            // Prevent double clicks, show loading state
-            e.target.disabled = true;
-            e.target.textContent = 'Deleting...';
-            await deleteItem(item.id);
-            // Re-enable button in case of error (realtime will handle removal on success)
-            // e.target.disabled = false;
-            // e.target.textContent = 'Delete';
-        });
-
-        // --- Edit Mode Toggle Logic ---
-        let itemEditorInstance = null; // To hold the Quill instance for editing this specific item
-
-        editButton.addEventListener('click', () => {
-            // --- Ensure the item is expanded before editing ---
-            if (!itemDiv.classList.contains('expanded')) {
-                itemDiv.classList.add('expanded');
-                 // Update the show more button text immediately if needed
-                 const btn = itemDiv.querySelector('.show-more-button');
-                 if (btn) {
-                     btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-                 }
-            }
-            // --- End expansion check ---
-
-            // Initialize Quill editor for this item
-            contentContainer.innerHTML = ''; // Clear current content (viewer/pre)
-            const editDiv = document.createElement('div');
-            // editDiv.style.height = '100px'; // REMOVED fixed height
-            contentContainer.appendChild(editDiv);
-
-            itemEditorInstance = new Quill(editDiv, {
-                 theme: 'snow',
-                 modules: {
-                     // Simplified toolbar: only basic text formatting
-                     toolbar: [
-                         ['bold', 'italic', 'underline'],
-                         ['code-block'] // Keep code block for code snippets
-                     ]
-                 }
-            });
-
-            // Load content - handle both Delta and legacy string format
-            let contentToLoad = item.content;
-             if (typeof contentToLoad === 'string') {
-                 // Convert legacy string to Delta format for editing
-                 itemEditorInstance.setText(contentToLoad);
-                 console.log(`Item ${item.id}: Loaded legacy string into editor.`);
-             } else if (contentToLoad && typeof contentToLoad === 'object' && Array.isArray(contentToLoad.ops)) {
-                 itemEditorInstance.setContents(contentToLoad); // Load Delta
-                 console.log(`Item ${item.id}: Loaded Delta into editor.`);
-             } else {
-                 console.error(`Item ${item.id}: Cannot load unknown format into editor.`, contentToLoad);
-                 itemEditorInstance.setText('[Error loading content]');
-             }
-
-
-            // Toggle button visibility
-            editButton.style.display = 'none';
-            copyButton.style.display = 'none';
-            deleteButton.style.display = 'none';
-            saveButton.style.display = 'inline-block'; // Show save
-            cancelButton.style.display = 'inline-block'; // Show cancel
-        });
-
-        function exitEditMode() {
-             // Destroy the item's Quill editor instance
-             if (itemEditorInstance) {
-                 // It seems Quill doesn't have a built-in destroy. We just remove the element.
-                 // Best practice might involve more cleanup if listeners were added directly to Quill.
-                 itemEditorInstance = null;
-             }
-             // Re-render the item in read-only mode
-             // Easiest way is often to just re-render the whole list or fetch again,
-             // but let's try re-rendering just this item's content viewer for now.
-             renderItemContent(contentContainer, item.content, item.id); // Need a helper function
-
-            // Toggle button visibility back
-            editButton.style.display = 'inline-block';
-            copyButton.style.display = 'inline-block';
-            deleteButton.style.display = 'inline-block';
-            saveButton.style.display = 'none';
-            cancelButton.style.display = 'none';
-        }
-
-        // --- Save Logic ---
-        saveButton.addEventListener('click', async () => {
-            if (!itemEditorInstance) return;
-
-            const newDeltaContent = itemEditorInstance.getContents(); // Get Delta from item editor
-            console.log(`Saving updated Delta for item ${item.id}:`, JSON.stringify(newDeltaContent));
-
-            // Add saving visual state
-            saveButton.textContent = 'Saving...';
-            saveButton.disabled = true;
-            cancelButton.disabled = true;
-
-            await updateItem(item.id, newDeltaContent); // Pass the Delta object to updateItem
-
-            // Exit edit mode (Realtime should handle the update display, but we exit edit mode locally)
-            // Update function might return success/failure for better handling here
-            // For now, assume success or rely on realtime refresh
-             exitEditMode();
-             // Reset button state just in case
-             saveButton.textContent = 'Save';
-             saveButton.disabled = false;
-             cancelButton.disabled = false;
-
-        });
-
-        // --- Cancel Logic ---
-        cancelButton.addEventListener('click', () => {
-            exitEditMode(); // Just revert UI changes
-        });
-
-
-        // Add buttons to their container (in desired order)
-        buttonContainer.appendChild(editButton);
-        buttonContainer.appendChild(copyButton);
-        buttonContainer.appendChild(deleteButton);
-        buttonContainer.appendChild(saveButton); // Add hidden buttons
-        buttonContainer.appendChild(cancelButton);
-        // buttonContainer.appendChild(expandBtn); // Removed old append
-
-        // Add content and buttons to the item container
-        itemDiv.appendChild(contentContainer); // Add the content container
-        itemDiv.appendChild(buttonContainer); // Add the right-side button container
-        itemDiv.appendChild(showMoreBtn); // Add the show-more button at the bottom
-        clipboardListElement.appendChild(itemDiv);
+        fragment.appendChild(itemDiv); // Add to fragment
     });
 
+    clipboardListElement.appendChild(fragment); // Append fragment to the DOM once
+
     // --- Post-render check for "Show More" button visibility ---
-    // This needs to run AFTER all items are in the DOM so scrollHeight is accurate.
-    // Use setTimeout with 0 delay to push this check to the end of the event queue,
-    // ensuring the browser has had a chance to render.
+    // Needs to run AFTER items are in the DOM. setTimeout 0 trick.
     setTimeout(() => {
         const renderedItems = clipboardListElement.querySelectorAll('.clipboard-item');
         renderedItems.forEach(renderedItemDiv => {
             const contentContainer = renderedItemDiv.querySelector('.item-content-container');
             const showMoreBtn = renderedItemDiv.querySelector('.show-more-button');
             if (contentContainer && showMoreBtn) {
-                // Check if content's scroll height exceeds the collapsed container's client height (or the CSS max-height)
-                // Adding a small buffer (e.g., 1-2px) can help with subpixel rendering differences.
-                const threshold = 110; // Use the CSS max-height value
-                const isOverflowing = contentContainer.scrollHeight > threshold + 2; // Add 2px buffer
-
-                if (!isOverflowing) {
-                    showMoreBtn.style.display = 'none'; // Hide button if not overflowing
-                    // console.log(`Item ${renderedItemDiv.dataset.id}: Hiding button (Scroll: ${contentContainer.scrollHeight}, Threshold: ${threshold})`);
-                } else {
-                    showMoreBtn.style.display = 'block'; // Ensure button is visible if overflowing (might be hidden from previous render)
-                    // console.log(`Item ${renderedItemDiv.dataset.id}: Showing button (Scroll: ${contentContainer.scrollHeight}, Threshold: ${threshold})`);
-                }
+                const threshold = 110; // CSS max-height
+                const isOverflowing = contentContainer.scrollHeight > threshold + 2;
+                showMoreBtn.style.display = isOverflowing ? 'block' : 'none';
             }
         });
-        console.log("Post-render check for 'Show More' buttons completed.");
-    }, 0); // setTimeout 0 ensures this runs after current execution stack clears
+        // console.log("Post-render check for 'Show More' buttons completed."); // Keep if needed
+    }, 0);
 
-     statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
+    statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
 }
 
-// Helper function to render item content (used initially and after exiting edit mode)
-function renderItemContent(container, contentData, itemId) {
-    container.innerHTML = ''; // Clear previous content
-     try {
-            // Check if content is a simple JSON string (likely converted plain text)
-            if (typeof contentData === 'string') {
-                 const pre = document.createElement('pre');
-                 pre.textContent = contentData;
-                 container.appendChild(pre);
-            } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
-                 // Render Delta using a temporary Quill instance
-                const tempEditorDiv = document.createElement('div');
-                container.appendChild(tempEditorDiv);
-                const quillViewer = new Quill(tempEditorDiv, {
-                    theme: 'snow', readOnly: true, modules: { toolbar: false }
-                });
-                quillViewer.setContents(contentData);
-            } else {
-                 console.error(`Item ${itemId}: Unknown content format during re-render`, contentData);
-                 const pre = document.createElement('pre');
-                 pre.textContent = '[Error: Unknown content format]';
-                 container.appendChild(pre);
-            }
-        } catch (e) {
-             console.error(`Error re-rendering content for item ${itemId}:`, e, contentData);
-             const pre = document.createElement('pre');
-             pre.textContent = `[Error rendering content: ${e.message}]`;
-             container.appendChild(pre);
-        }
+// Helper function to exit edit mode for a specific item
+function exitEditMode(itemId) {
+    const itemDiv = clipboardListElement.querySelector(`.clipboard-item[data-id='${itemId}']`);
+    if (!itemDiv) return;
+
+    const contentContainer = itemDiv.querySelector('.item-content-container');
+    const buttonContainer = itemDiv.querySelector('.item-buttons');
+
+    // Destroy the item's Quill editor instance
+    if (activeItemEditors[itemId]) {
+        // Quill doesn't have a formal destroy. Remove the editor element it created.
+        const editorElement = contentContainer.querySelector('.ql-container');
+        if (editorElement) editorElement.parentElement.remove(); // Remove the Quill structure
+        delete activeItemEditors[itemId]; // Remove from our store
+    }
+
+    // Re-render the item in read-only mode using the helper
+    const itemData = clipboardItems.find(i => i.id == itemId); // Get data from state
+    if (itemData) {
+        renderItemContent(contentContainer, itemData.content, itemId);
+    } else {
+         contentContainer.innerHTML = '<pre>[Error: Item data not found]</pre>'; // Fallback
+    }
+
+
+    // Toggle button visibility back using class selectors within the itemDiv
+    const editButton = buttonContainer.querySelector('.edit-button');
+    const copyButton = buttonContainer.querySelector('.copy-button');
+    const deleteButton = buttonContainer.querySelector('.delete-button');
+    const saveButton = buttonContainer.querySelector('.save-button');
+    const cancelButton = buttonContainer.querySelector('.cancel-button');
+
+    if (editButton) editButton.style.display = 'inline-block';
+    if (copyButton) copyButton.style.display = 'inline-block';
+    if (deleteButton) deleteButton.style.display = 'inline-block';
+    if (saveButton) saveButton.style.display = 'none';
+    if (cancelButton) cancelButton.style.display = 'none';
+
+    // Reset save button state just in case
+    if (saveButton) {
+        saveButton.textContent = 'Save';
+        saveButton.disabled = false;
+    }
+    if (cancelButton) {
+        cancelButton.disabled = false;
+    }
 }
 
 
@@ -546,36 +404,64 @@ async function deleteItem(id) {
 }
 
 // --- Function: Handle Realtime Updates ---
+// OPTIMIZED: Modifies local state directly instead of always refetching
 function handleRealtimeUpdate(payload) {
     console.log('Realtime change received:', payload);
     statusElement.textContent = 'Realtime update received...';
+    let needsRender = false;
 
     // --- Handling INSERT ---
     if (payload.eventType === 'INSERT') {
         const newItem = payload.new;
-        // Add to our local state (maintaining sort order - easiest is often to just refetch)
-        // Simple approach: Refetch the whole list to ensure correct order
-        console.log('INSERT detected, refetching list...');
-        fetchClipboardItems();
-        // More advanced: Insert newItem into the clipboardItems array in the correct sorted position
-        // and then call renderClipboardList(clipboardItems);
+        // Add to our local state, maintaining sort order (assuming ascending createdAt)
+        clipboardItems.push(newItem); // Add to the end
+        // For descending order, use unshift(newItem);
+        // Or, for robust sorting: clipboardItems.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        console.log(`Item ${newItem.id} inserted via realtime.`);
+        statusElement.textContent = `New item added.`;
+        needsRender = true;
     }
     // --- Handling DELETE ---
     else if (payload.eventType === 'DELETE') {
         const deletedItemId = payload.old.id;
-        // Remove from our local state
+        const initialLength = clipboardItems.length;
         clipboardItems = clipboardItems.filter(item => item.id !== deletedItemId);
-        // Re-render the list from the updated state
-        renderClipboardList(clipboardItems);
-        console.log(`Item ${deletedItemId} removed via realtime.`);
-        statusElement.textContent = `Item ${deletedItemId} removed.`;
+        if (clipboardItems.length < initialLength) {
+            console.log(`Item ${deletedItemId} removed via realtime.`);
+            statusElement.textContent = `Item ${deletedItemId} removed.`;
+             needsRender = true;
+             // If the deleted item was being edited, cancel edit mode
+             if (activeItemEditors[deletedItemId]) {
+                 exitEditMode(deletedItemId); // Clean up editor state
+             }
+        }
     }
-    // --- Handling UPDATE (optional for now, but good practice) ---
+    // --- Handling UPDATE ---
     else if (payload.eventType === 'UPDATE') {
-        // If we later allow editing, we'd handle it here
-        // Simple approach: Refetch
-        console.log('UPDATE detected, refetching list...');
-        fetchClipboardItems();
+        const updatedItem = payload.new;
+        const index = clipboardItems.findIndex(item => item.id === updatedItem.id);
+        if (index !== -1) {
+            // If the item being updated is currently in edit mode locally,
+            // we might want to either discard local changes or prevent the update,
+            // or merge. For simplicity, we'll just update the data and re-render.
+            // If it was being edited, exitEditMode will be called by the render logic implicitly,
+            // or we can call it explicitly here.
+            if (activeItemEditors[updatedItem.id]) {
+                 console.log(`Item ${updatedItem.id} was updated remotely while being edited locally. Exiting edit mode.`);
+                 exitEditMode(updatedItem.id); // Exit edit mode before updating data
+            }
+            clipboardItems[index] = updatedItem;
+            console.log(`Item ${updatedItem.id} updated via realtime.`);
+            statusElement.textContent = `Item ${updatedItem.id} updated.`;
+             needsRender = true;
+        }
+    }
+
+    // Re-render the list if the local state changed
+    if (needsRender) {
+        renderClipboardList(clipboardItems);
+    } else {
+         statusElement.textContent = `Realtime event (${payload.eventType}) processed.`;
     }
 }
 
@@ -613,7 +499,7 @@ function setupRealtimeSubscription() {
 }
 
 // --- Main Execution Logic ---
-if (supabase && editorContainer) { // Check if editor container exists
+if (supabase && editorContainer) {
     // 1. Initialize Quill Editor
     quillEditor = new Quill('#editor-container', {
         modules: {
@@ -856,11 +742,150 @@ if (supabase && editorContainer) { // Check if editor container exists
     // 3. Set up the realtime subscription
     setupRealtimeSubscription();
 
+    // --- Event Listener using Delegation for Item Actions ---
+    clipboardListElement.addEventListener('click', async (event) => {
+        const target = event.target;
+        const itemDiv = target.closest('.clipboard-item');
+        if (!itemDiv) return; // Click wasn't inside a relevant item part
+
+        const itemId = itemDiv.dataset.id;
+        const itemData = clipboardItems.find(i => i.id == itemId); // Find item data
+        if (!itemData) {
+             console.error(`Could not find data for item ID: ${itemId}`);
+             return;
+         }
+
+        const contentContainer = itemDiv.querySelector('.item-content-container');
+        const buttonContainer = itemDiv.querySelector('.item-buttons');
+        const showMoreButton = itemDiv.querySelector('.show-more-button'); // Get show more button
+
+
+        // --- Handle Button Clicks ---
+
+        // Edit Button
+        if (target.classList.contains('edit-button')) {
+             // Ensure item is expanded before editing
+             if (!itemDiv.classList.contains('expanded') && showMoreButton && showMoreButton.style.display !== 'none') {
+                 itemDiv.classList.add('expanded');
+                 showMoreButton.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+             }
+
+             contentContainer.innerHTML = ''; // Clear current content
+             const editDiv = document.createElement('div');
+             contentContainer.appendChild(editDiv);
+
+             const itemEditorInstance = new Quill(editDiv, {
+                 theme: 'snow',
+                 modules: { toolbar: [['bold', 'italic', 'underline'], ['code-block']] }
+             });
+             activeItemEditors[itemId] = itemEditorInstance; // Store the instance
+
+             // Load content
+             let contentToLoad = itemData.content;
+             if (typeof contentToLoad === 'string') {
+                 itemEditorInstance.setText(contentToLoad);
+             } else if (contentToLoad && typeof contentToLoad === 'object' && Array.isArray(contentToLoad.ops)) {
+                 itemEditorInstance.setContents(contentToLoad);
+             } else {
+                 itemEditorInstance.setText('[Error loading content]');
+             }
+
+             // Toggle button visibility
+             buttonContainer.querySelector('.edit-button').style.display = 'none';
+             buttonContainer.querySelector('.copy-button').style.display = 'none';
+             buttonContainer.querySelector('.delete-button').style.display = 'none';
+             buttonContainer.querySelector('.save-button').style.display = 'inline-block';
+             buttonContainer.querySelector('.cancel-button').style.display = 'inline-block';
+        }
+
+        // Save Button
+        else if (target.classList.contains('save-button')) {
+            const itemEditorInstance = activeItemEditors[itemId];
+            if (!itemEditorInstance) return;
+
+            const newDeltaContent = itemEditorInstance.getContents();
+            const saveButton = target;
+            const cancelButton = buttonContainer.querySelector('.cancel-button');
+
+            saveButton.textContent = 'Saving...';
+            saveButton.disabled = true;
+            if (cancelButton) cancelButton.disabled = true;
+
+            await updateItem(itemId, newDeltaContent); // Call Supabase update
+
+            // updateItem doesn't directly call exitEditMode anymore,
+            // Realtime update OR manual call will handle UI refresh.
+            // We manually call exitEditMode here for immediate feedback
+            // in case realtime is slow or fails.
+            exitEditMode(itemId);
+            // Note: Button state reset happens within exitEditMode
+        }
+
+        // Cancel Button
+        else if (target.classList.contains('cancel-button')) {
+            exitEditMode(itemId);
+        }
+
+        // Delete Button
+        else if (target.classList.contains('delete-button')) {
+            target.disabled = true;
+            target.textContent = 'Deleting...';
+            await deleteItem(itemId);
+            // No need to manually re-enable, realtime DELETE handler will remove the item.
+             // If delete fails, the error handler in deleteItem might re-enable it.
+        }
+
+        // Copy Button
+        else if (target.classList.contains('copy-button')) {
+            let textToCopy = '';
+            const copyButton = target; // Reference the button
+            try {
+                let contentData = itemData.content;
+                if (typeof contentData === 'string') {
+                    textToCopy = contentData;
+                } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
+                     // Create temp Quill to get text from Delta
+                     const tempDiv = document.createElement('div');
+                     const tempQuill = new Quill(tempDiv);
+                     tempQuill.setContents(contentData);
+                     textToCopy = tempQuill.getText().replace(/\n$/, ''); // Get text, trim trailing newline
+                } else {
+                    textToCopy = '[Unsupported Content Format]';
+                }
+
+                await navigator.clipboard.writeText(textToCopy);
+                showToast('已复制到剪贴板', 'success');
+                copyButton.textContent = 'Copied!';
+                copyButton.disabled = true;
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                    copyButton.disabled = false;
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showToast('复制失败', 'error');
+                copyButton.textContent = 'Error';
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                }, 1500);
+            }
+        }
+
+        // Show More Button
+        else if (target.classList.contains('show-more-button') || target.closest('.show-more-button')) {
+             const btn = target.closest('.show-more-button'); // Get the button element itself
+             itemDiv.classList.toggle('expanded');
+             if (itemDiv.classList.contains('expanded')) {
+                 btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+             } else {
+                 btn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+             }
+        }
+    });
+
 } else if (!editorContainer) {
      console.error("Quill container '#editor-container' not found.");
      statusElement.textContent = 'Error: Editor UI element missing!';
-
 } else {
-    // Handle case where Supabase client failed to initialize
     statusElement.textContent = 'Failed to connect to backend. Check console.';
 }
