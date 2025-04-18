@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import Quill from 'quill'; // Import Quill
+import Quill from 'quill'; // 引入 Quill
 
 // --- Toast提示函数 ---
 function showToast(message, type = 'info') {
@@ -34,431 +34,310 @@ function showToast(message, type = 'info') {
     }, 1800);
 }
 
-// --- Configuration ---
+// --- 配置区 ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const TABLE_NAME = 'clipboard'; // Your table name
+const TABLE_NAME = 'clipboard'; // 表名
 
-// --- Get HTML Elements ---
+// --- 获取页面元素 ---
 const statusElement = document.getElementById('status');
-// const newItemTextarea = document.getElementById('newItemContent'); // Removed old textarea reference
-const editorContainer = document.getElementById('editor-container'); // Get Quill container
+const editorContainer = document.getElementById('editor-container'); // Quill编辑器容器
 const addButton = document.getElementById('addButton');
 const clipboardListElement = document.getElementById('clipboardList');
 
-// --- Initialize Quill Editor ---
-let quillEditor = null; // Variable to hold the main Quill instance
+// --- 初始化 Quill 编辑器变量 ---
+let quillEditor = null; // 主编辑器实例
 
-// --- Initialize Supabase Client ---
+// --- 初始化 Supabase 客户端 ---
 let supabase = null;
 if (supabaseUrl && supabaseAnonKey) {
     try {
         supabase = createClient(supabaseUrl, supabaseAnonKey);
         console.log('Supabase client initialized.');
-        statusElement.textContent = 'Supabase client initialized.';
+        statusElement.textContent = 'Supabase 客户端已初始化。';
     } catch (error) {
-        console.error("Error initializing Supabase:", error);
-        statusElement.textContent = `Error initializing Supabase: ${error.message}`;
+        console.error("初始化 Supabase 出错:", error);
+        statusElement.textContent = `初始化 Supabase 出错: ${error.message}`;
         if (addButton) addButton.disabled = true;
-        if (newItemTextarea) newItemTextarea.disabled = true;
     }
 } else {
-    console.error('Supabase URL or Anon Key is missing. Check environment variables.');
-    statusElement.textContent = 'Error: Supabase URL or Anon Key missing!';
+    console.error('Supabase URL 或 Anon Key 缺失，请检查环境变量。');
+    statusElement.textContent = '错误: 缺少 Supabase URL 或 Anon Key!';
     if (addButton) addButton.disabled = true;
-    // if (newItemTextarea) newItemTextarea.disabled = true; // Removed old reference
-    // Disable editor if Supabase fails? Quill initialization happens later.
 }
 
-// --- State Variable ---
-let clipboardItems = []; // To hold the current list of items
+// --- 状态变量 ---
+let clipboardItems = []; // 当前剪贴板项目列表
 
-// --- Store for item-specific Quill editor instances (only when editing) ---
-// REMOVED: const activeItemEditors = {};
-
-// Helper function to render item content (used initially and after exiting edit mode)
-// OPTIMIZED: Renders plain text or simple HTML for read-only view, avoids Quill instance per item.
+// 渲染单条内容（只读视图，避免为每条都创建 Quill 实例）
 function renderItemContent(container, contentData, itemId) {
-    container.innerHTML = ''; // Clear previous content
+    container.innerHTML = '';
     try {
         let displayText = '';
-        let isHtml = false; // Flag to indicate if we should use innerHTML
-
-        // Check if content is a simple JSON string (likely converted plain text)
         if (typeof contentData === 'string') {
             displayText = contentData;
             const pre = document.createElement('pre');
             pre.textContent = displayText;
             container.appendChild(pre);
         } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
-            // Render Delta: Get plain text representation for display
-            // Create a temporary Quill instance *without* a container element
-            const tempQuill = new Quill(document.createElement('div')); // Temporary, not added to DOM
+            // 用临时 Quill 实例将 Delta 转为纯文本
+            const tempQuill = new Quill(document.createElement('div'));
             tempQuill.setContents(contentData);
-            displayText = tempQuill.getText(); // Get plain text
-
-            // Display plain text within a <pre> tag to preserve line breaks
+            displayText = tempQuill.getText();
             const pre = document.createElement('pre');
-             // Trim trailing newline often added by getText()
             pre.textContent = displayText.replace(/\n$/, '');
             container.appendChild(pre);
-
-            // --- Optional: Alternative using getSemanticHTML (if available & suitable) ---
-            // Note: getSemanticHTML is not a standard Quill API, but demonstrates the idea.
-            // If Quill had such a method or you found a library:
-            // try {
-            //     // Hypothetical: Convert Delta to basic HTML
-            //     displayText = convertDeltaToHtml(contentData); // Replace with actual conversion logic/library
-            //     isHtml = true;
-            // } catch (htmlErr) {
-            //     console.warn(`Item ${itemId}: Could not convert Delta to HTML, falling back to text.`, htmlErr);
-            //     // Fallback to plain text if HTML conversion fails
-            //     const tempQuill = new Quill(document.createElement('div'));
-            //     tempQuill.setContents(contentData);
-            //     displayText = tempQuill.getText().replace(/\n$/, '');
-            //     isHtml = false; // Ensure we use textContent below
-            // }
-            //
-            // if (isHtml) {
-            //     container.innerHTML = displayText; // Set as HTML
-            // } else {
-            //     const pre = document.createElement('pre');
-            //     pre.textContent = displayText; // Set as text
-            //     container.appendChild(pre);
-            // }
-            // --- End Optional Alternative ---
-
         } else {
-            console.error(`Item ${itemId}: Unknown content format during render`, contentData);
+            console.error(`项目 ${itemId}: 内容格式未知`, contentData);
             const pre = document.createElement('pre');
-            pre.textContent = '[Error: Unknown content format]';
+            pre.textContent = '[错误: 内容格式未知]';
             container.appendChild(pre);
         }
     } catch (e) {
-        console.error(`Error rendering content for item ${itemId}:`, e, contentData);
+        console.error(`渲染项目 ${itemId} 内容出错:`, e, contentData);
         const pre = document.createElement('pre');
-        pre.textContent = `[Error rendering content: ${e.message}]`;
+        pre.textContent = `[渲染内容出错: ${e.message}]`;
         container.appendChild(pre);
     }
 }
 
-
-// --- Function: Render the list of clipboard items ---
-// OPTIMIZED: Uses event delegation and simplified rendering, NO EDIT functionality
+// --- 渲染剪贴板项目列表 ---
 function renderClipboardList(items) {
     if (!clipboardListElement) return;
-    clipboardListElement.innerHTML = ''; // Clear the current list display
-
+    clipboardListElement.innerHTML = '';
     if (items.length === 0) {
-        clipboardListElement.innerHTML = '<p>No clipboard items yet.</p>';
+        clipboardListElement.innerHTML = '<p>暂无剪贴板内容。</p>';
         return;
     }
-
-    const fragment = document.createDocumentFragment(); // Use fragment for better performance
-
+    const fragment = document.createDocumentFragment();
     items.forEach(item => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'clipboard-item';
-        itemDiv.dataset.id = item.id; // Store ID on the main element
-
-        // --- Content Display ---
+        itemDiv.dataset.id = item.id;
+        // 内容区
         const contentContainer = document.createElement('div');
         contentContainer.className = 'item-content-container';
-        // Initial rendering using the optimized function
         renderItemContent(contentContainer, item.content, item.id);
-
-        // --- Buttons Container ---
+        // 按钮区
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'item-buttons';
-
-        // Create Buttons (structure only, listeners added via delegation) - REMOVED Edit/Save/Cancel
         buttonContainer.innerHTML = `
-            <button class="copy-button">Copy</button>
-            <button class="delete-button">Delete</button>
+            <button class="copy-button">复制</button>
+            <button class="delete-button">删除</button>
         `;
-
-         // Add "Show More" / "Show Less" button
-         const showMoreBtn = document.createElement('button');
-         showMoreBtn.className = 'show-more-button';
-         showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-         // Note: Listener for this will also be handled by delegation
-
-        // Assemble the item
+        // 显示更多/收起按钮
+        const showMoreBtn = document.createElement('button');
+        showMoreBtn.className = 'show-more-button';
+        showMoreBtn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         itemDiv.appendChild(contentContainer);
         itemDiv.appendChild(buttonContainer);
         itemDiv.appendChild(showMoreBtn);
-
-        fragment.appendChild(itemDiv); // Add to fragment
+        fragment.appendChild(itemDiv);
     });
-
-    clipboardListElement.appendChild(fragment); // Append fragment to the DOM once
-
-    // --- Post-render check for "Show More" button visibility ---
-    // Needs to run AFTER items are in the DOM. setTimeout 0 trick.
+    clipboardListElement.appendChild(fragment);
+    // 检查是否需要显示"显示更多"按钮
     setTimeout(() => {
         const renderedItems = clipboardListElement.querySelectorAll('.clipboard-item');
         renderedItems.forEach(renderedItemDiv => {
             const contentContainer = renderedItemDiv.querySelector('.item-content-container');
             const showMoreBtn = renderedItemDiv.querySelector('.show-more-button');
-            if (contentContainer && showMoreBtn) {
-                const threshold = 110; // CSS max-height
-                const isOverflowing = contentContainer.scrollHeight > threshold + 2;
-                showMoreBtn.style.display = isOverflowing ? 'block' : 'none';
-            }
+            const threshold = 110;
+            const isOverflowing = contentContainer.scrollHeight > threshold + 2;
+            showMoreBtn.style.display = isOverflowing ? 'block' : 'none';
         });
-        // console.log("Post-render check for 'Show More' buttons completed."); // Keep if needed
     }, 0);
-
-    statusElement.textContent = `Ready. ${items.length} item(s) loaded.`;
+    statusElement.textContent = `就绪，已加载 ${items.length} 条内容。`;
 }
 
-// --- Function: Fetch all clipboard items from Supabase ---
+// --- 从 Supabase 获取所有剪贴板内容 ---
 async function fetchClipboardItems() {
     if (!supabase) return;
-    statusElement.textContent = 'Fetching clipboard history...';
+    statusElement.textContent = '正在获取剪贴板历史...';
     try {
         const { data, error } = await supabase
             .from(TABLE_NAME)
-            .select('*') // Select all columns (id, content, created_at)
-            .order('created_at', { ascending: false }); // CHANGED: Order by creation time, newest first
-
+            .select('*')
+            .order('created_at', { ascending: false });
         if (error) throw error;
-
-        clipboardItems = data || []; // Update our local state
-        renderClipboardList(clipboardItems); // Render the fetched items
-        console.log('Clipboard items fetched and rendered (newest first).');
-
+        clipboardItems = data || [];
+        renderClipboardList(clipboardItems);
+        console.log('剪贴板内容已获取并渲染（新到旧）。');
     } catch (error) {
-        console.error('Error fetching clipboard items:', error);
-        statusElement.textContent = `Error fetching history: ${error.message}`;
+        console.error('获取剪贴板内容出错:', error);
+        statusElement.textContent = `获取历史出错: ${error.message}`;
     }
 }
 
-// --- Function: Add a new item to Supabase ---
+// --- 新增一条剪贴板内容 ---
 async function addNewItem() {
-    // Get content from Quill editor as Delta object
     const delta = quillEditor.getContents();
-
-    // Basic check if editor is empty (Delta has only one op: a newline insert)
+    // 检查编辑器是否为空
     if (!delta || (delta.ops && delta.ops.length === 1 && delta.ops[0].insert === '\n') || !supabase) {
-         console.log("Editor is empty or Supabase not ready. Not adding.");
-        return; // Do nothing if no content or Supabase isn't ready
+        console.log("编辑器为空或 Supabase 未就绪，不添加。");
+        return;
     }
-
-    // The content to save is the Delta object itself
     const contentToSave = delta;
-    console.log("Saving content (Delta):", JSON.stringify(contentToSave));
-
-
-    addButton.disabled = true; // Disable button while saving
-    addButton.textContent = 'Adding...';
-    statusElement.textContent = 'Adding new item...';
-
+    console.log("保存内容(Delta):", JSON.stringify(contentToSave));
+    addButton.disabled = true;
+    addButton.textContent = '添加中...';
+    statusElement.textContent = '正在添加新内容...';
     try {
-        // Insert the Delta object into the jsonb column
         const { error } = await supabase
             .from(TABLE_NAME)
-            .insert({ content: contentToSave }); // Save the Delta object
-
+            .insert({ content: contentToSave });
         if (error) {
-            // Check for specific errors, e.g., RLS policy violation
-             if (error.message.includes('violates row-level security policy')) {
-                 console.error(`RLS Error adding item: Make sure INSERT policy is enabled.`);
-                 statusElement.textContent = `Error: Cannot add item. Check permissions.`;
-             } else {
-                 throw error; // Re-throw other errors
-             }
+            if (error.message.includes('violates row-level security policy')) {
+                console.error(`RLS 错误: 请确保 INSERT 策略已开启。`);
+                statusElement.textContent = `错误: 无法添加内容，请检查权限。`;
+            } else {
+                throw error;
+            }
         } else {
-             quillEditor.setContents([{ insert: '\n' }]); // Clear the editor on success
-            console.log('New item added successfully.');
-            statusElement.textContent = 'Item added!';
+            quillEditor.setContents([{ insert: '\n' }]);
+            console.log('新内容添加成功。');
+            statusElement.textContent = '内容已添加!';
             showToast('添加成功', 'success');
-            // Realtime should handle the UI update
         }
-
     } catch (error) {
-        console.error('Error adding new item:', error);
-        statusElement.textContent = `Error adding item: ${error.message}`;
+        console.error('添加新内容出错:', error);
+        statusElement.textContent = `添加内容出错: ${error.message}`;
     } finally {
-        addButton.disabled = false; // Re-enable button
-         addButton.textContent = 'Add Clip';
+        addButton.disabled = false;
+        addButton.textContent = '添加';
     }
 }
 
-// --- Function: Delete an item from Supabase ---
+// --- 删除一条内容 ---
 async function deleteItem(id) {
     if (!supabase) return;
-    statusElement.textContent = `Deleting item ${id}...`;
+    statusElement.textContent = `正在删除内容 ${id}...`;
     try {
         const { error } = await supabase
             .from(TABLE_NAME)
             .delete()
-            .eq('id', id); // Specify which item to delete by ID
-
+            .eq('id', id);
         if (error) throw error;
-
-        console.log(`Item ${id} deleted successfully.`);
-        statusElement.textContent = `Item ${id} deleted.`;
+        console.log(`内容 ${id} 删除成功。`);
+        statusElement.textContent = `内容 ${id} 已删除。`;
         showToast('删除成功', 'success');
-        // No need to manually remove from list here, realtime 'DELETE' event will handle it
-
     } catch (error) {
-        console.error(`Error deleting item ${id}:`, error);
-        statusElement.textContent = `Error deleting item ${id}: ${error.message}`;
-        // If deletion failed, we might need to re-enable the delete button on the item
+        console.error(`删除内容 ${id} 出错:`, error);
+        statusElement.textContent = `删除内容 ${id} 出错: ${error.message}`;
         const failedButton = clipboardListElement.querySelector(`.clipboard-item[data-id='${id}'] .delete-button`);
         if(failedButton) {
             failedButton.disabled = false;
-            failedButton.textContent = 'Delete';
+            failedButton.textContent = '删除';
         }
     }
 }
 
-// --- Function: Handle Realtime Updates ---
-// OPTIMIZED: Modifies local state directly, newest first, no edit logic
+// --- 处理实时更新 ---
 function handleRealtimeUpdate(payload) {
-    console.log('Realtime change received:', payload);
-    statusElement.textContent = 'Realtime update received...';
+    console.log('收到实时变更:', payload);
+    statusElement.textContent = '收到实时更新...';
     let needsRender = false;
-
-    // --- Handling INSERT ---
     if (payload.eventType === 'INSERT') {
         const newItem = payload.new;
-        // Add to the beginning of our local state for newest first
-        clipboardItems.unshift(newItem); // CHANGED: Add to the start
-        console.log(`Item ${newItem.id} inserted via realtime (added to top).`);
-        statusElement.textContent = `New item added.`;
+        clipboardItems.unshift(newItem);
+        console.log(`内容 ${newItem.id} 通过实时插入（已加到顶部）。`);
+        statusElement.textContent = `新内容已添加。`;
         needsRender = true;
-    }
-    // --- Handling DELETE ---
-    else if (payload.eventType === 'DELETE') {
+    } else if (payload.eventType === 'DELETE') {
         const deletedItemId = payload.old.id;
         const initialLength = clipboardItems.length;
         clipboardItems = clipboardItems.filter(item => item.id !== deletedItemId);
         if (clipboardItems.length < initialLength) {
-            console.log(`Item ${deletedItemId} removed via realtime.`);
-            statusElement.textContent = `Item ${deletedItemId} removed.`;
-             needsRender = true;
-             // REMOVED: Check if the deleted item was being edited
-             // if (activeItemEditors[deletedItemId]) { ... }
+            console.log(`内容 ${deletedItemId} 通过实时删除。`);
+            statusElement.textContent = `内容 ${deletedItemId} 已删除。`;
+            needsRender = true;
         }
-    }
-    // --- Handling UPDATE ---
-    // NOTE: Since we removed editing, UPDATE might be less common unless done externally.
-    // The logic still works to update the item in the list if needed.
-    else if (payload.eventType === 'UPDATE') {
+    } else if (payload.eventType === 'UPDATE') {
         const updatedItem = payload.new;
         const index = clipboardItems.findIndex(item => item.id === updatedItem.id);
         if (index !== -1) {
-            // REMOVED: Check if the item being updated is currently in edit mode locally
-            // if (activeItemEditors[updatedItem.id]) { ... }
             clipboardItems[index] = updatedItem;
-            console.log(`Item ${updatedItem.id} updated via realtime.`);
-            statusElement.textContent = `Item ${updatedItem.id} updated.`;
-             needsRender = true;
+            console.log(`内容 ${updatedItem.id} 通过实时更新。`);
+            statusElement.textContent = `内容 ${updatedItem.id} 已更新。`;
+            needsRender = true;
         }
     }
-
-    // Re-render the list if the local state changed
     if (needsRender) {
         renderClipboardList(clipboardItems);
     } else {
-         statusElement.textContent = `Realtime event (${payload.eventType}) processed.`;
+        statusElement.textContent = `实时事件 (${payload.eventType}) 已处理。`;
     }
 }
 
-// --- Function: Set up Realtime Subscription ---
+// --- 设置实时订阅 ---
 function setupRealtimeSubscription() {
     if (!supabase) return;
-    statusElement.textContent = 'Setting up realtime subscription...';
-    const channel = supabase.channel('public-clipboard-history'); // A channel name for this feature
-
+    statusElement.textContent = '正在建立实时订阅...';
+    const channel = supabase.channel('public-clipboard-history');
     channel
         .on(
             'postgres_changes',
             {
-                event: '*', // Listen to INSERT, UPDATE, DELETE
+                event: '*',
                 schema: 'public',
                 table: TABLE_NAME
-                // No filter needed, we want updates for the whole table
             },
-            handleRealtimeUpdate // Call our handler function
+            handleRealtimeUpdate
         )
         .subscribe((status, err) => {
             if (status === 'SUBSCRIBED') {
-                console.log('Successfully subscribed to realtime updates for the table!');
-                statusElement.textContent = 'Realtime connected. Fetching history...';
-                // Once subscribed, fetch the initial list of items
+                console.log('已成功订阅表的实时更新!');
+                statusElement.textContent = '实时已连接，正在获取历史...';
                 fetchClipboardItems();
             } else {
-                console.error(`Realtime subscription failed or closed: ${status}`, err);
-                statusElement.textContent = `Realtime error: ${status}`;
-                // Add logic here to maybe retry subscription after a delay
+                console.error(`实时订阅失败或已关闭: ${status}`, err);
+                statusElement.textContent = `实时错误: ${status}`;
             }
         });
-
-    return channel; // Return channel if needed for unsubscribing later
+    return channel;
 }
 
-// --- Main Execution Logic ---
+// --- 主执行逻辑 ---
 if (supabase && editorContainer) {
-    // 1. Initialize Quill Editor
+    // 1. 初始化 Quill 编辑器
     quillEditor = new Quill('#editor-container', {
         modules: {
-            toolbar: [ // Basic toolbar options (image handler added later)
+            toolbar: [
                 [{ header: [1, 2, false] }],
                 ['bold', 'italic', 'underline'],
                 ['image', 'code-block'],
                 [{ list: 'ordered'}, { list: 'bullet' }]
             ],
             clipboard: {
-                // Enhance paste handling for images
+                // 粘贴图片增强处理
                 matchers: [
-                    // Matcher for <img> tags
+                    // 针对 <img> 标签的处理
                     ['img', (node, delta) => {
                         const src = node.getAttribute('src');
-                        console.log('Pasted image src:', src);
-
-                        // Handle Base64 images
+                        console.log('粘贴图片 src:', src);
+                        // 处理 Base64 图片
                         if (src && src.startsWith('data:image/')) {
-                            console.log('Attempting to upload pasted Base64 image...');
-                            // Convert Base64 to Blob/File
+                            console.log('尝试上传粘贴的 Base64 图片...');
                             const blob = base64ToBlob(src);
                             if (blob) {
-                                // Create a unique filename
                                 const fileName = `pasted-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
                                 const file = new File([blob], fileName, { type: blob.type });
-
-                                // Reuse upload logic (needs slight refactoring or direct call)
-                                // For simplicity here, we trigger upload directly.
-                                // Ideally, refactor upload logic into a reusable function.
                                 uploadPastedImage(file).then(imageUrl => {
                                     if (imageUrl) {
-                                         // Return a Delta to insert the uploaded image URL
-                                         // We replace the entire original Delta op for the image
-                                         // This assumes the pasted image was a single op, which is usually true
                                         delta.ops = [{ insert: { image: imageUrl } }];
                                     } else {
-                                        console.warn("Pasted Base64 image upload failed, keeping original (potentially broken) src.");
-                                         // Keep original delta if upload fails
+                                        console.warn("Base64 图片上传失败，保留原始 src。");
                                     }
                                 }).catch(err => {
-                                    console.error("Error processing pasted Base64 image:", err);
-                                     // Keep original delta on error
+                                    console.error("处理 Base64 粘贴图片出错:", err);
                                 });
-                                // Important: Return the delta immediately. The promise above
-                                // will modify its 'ops' property later if upload succeeds.
                                 return delta;
                             } else {
-                                 console.warn("Could not convert pasted Base64 src to Blob.");
-                                 return delta; // Keep original if conversion fails
+                                console.warn("Base64 转 Blob 失败。");
+                                return delta;
                             }
-                        }
-                        // Handle Blob URLs (less common for cross-app paste, but good to have)
-                        else if (src && src.startsWith('blob:')) {
-                             console.log('Attempting to upload pasted Blob image...');
-                             // Fetch the blob data
-                             fetch(src)
+                        } else if (src && src.startsWith('blob:')) {
+                            console.log('尝试上传粘贴的 Blob 图片...');
+                            fetch(src)
                                 .then(res => res.blob())
                                 .then(blob => {
                                     if (blob) {
@@ -469,80 +348,68 @@ if (supabase && editorContainer) {
                                     return null;
                                 })
                                 .then(imageUrl => {
-                                     if (imageUrl) {
+                                    if (imageUrl) {
                                         delta.ops = [{ insert: { image: imageUrl } }];
                                     } else {
-                                        console.warn("Pasted Blob image upload failed, keeping original src.");
+                                        console.warn("Blob 图片上传失败，保留原始 src。");
                                     }
                                 })
                                 .catch(err => {
-                                     console.error("Error processing pasted Blob image:", err);
+                                    console.error("处理 Blob 粘贴图片出错:", err);
                                 });
-                               return delta; // Return delta immediately
-                        }
-                        // Otherwise, let Quill handle it (e.g., http/https URLs)
-                        else {
-                            console.log('Letting Quill handle non-data/blob image src:', src);
+                            return delta;
+                        } else {
+                            console.log('非 data/blob 图片，交由 Quill 默认处理:', src);
                             return delta;
                         }
                     }]
                 ]
             }
         },
-        placeholder: 'Paste or type content here...',
-        theme: 'snow' // 'snow' is a standard theme with toolbar
+        placeholder: '在此粘贴或输入内容...',
+        theme: 'snow'
     });
-    console.log("Quill editor initialized with clipboard matcher.");
+    console.log("Quill 编辑器已初始化并支持图片粘贴。");
 
-
-    // --- Custom Paste Handler ---
+    // --- 自定义粘贴事件处理 ---
     quillEditor.root.addEventListener('paste', async (event) => {
-        console.log('Paste event detected.');
+        console.log('检测到粘贴事件。');
         try {
             const items = await navigator.clipboard.read();
             let imageBlob = null;
-
             for (const item of items) {
                 const imageType = item.types.find(type => type.startsWith('image/'));
                 if (imageType) {
-                    console.log('Direct image data found on clipboard.');
+                    console.log('剪贴板中有图片数据。');
                     imageBlob = await item.getType(imageType);
-                    break; // Found an image, prioritize it
+                    break;
                 }
             }
-
             if (imageBlob) {
-                console.log('Processing direct image paste.');
-                event.preventDefault(); // IMPORTANT: Prevent Quill's default paste only if we handle it
-
+                console.log('处理直接粘贴的图片。');
+                event.preventDefault();
                 const file = new File([imageBlob], `pasted-${Date.now()}.${imageBlob.type.split('/')[1] || 'png'}`, { type: imageBlob.type });
                 const originalRange = quillEditor.getSelection(true);
-                const imageUrl = await uploadImageFile(file); // Use the reusable uploader
-
+                const imageUrl = await uploadImageFile(file);
                 if (imageUrl) {
                     quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
                     quillEditor.setSelection(originalRange.index + 1);
-                    statusElement.textContent = 'Pasted image uploaded and inserted.';
-                    console.log('Successfully handled direct image paste.');
+                    statusElement.textContent = '图片粘贴上传并插入成功。';
+                    console.log('图片粘贴处理成功。');
                 } else {
-                     statusElement.textContent = 'Failed to upload pasted image.';
-                     console.error('Pasted image upload failed.');
-                     // Maybe allow default paste as fallback? Or show error?
+                    statusElement.textContent = '图片上传失败。';
+                    console.error('图片粘贴上传失败。');
                 }
-                return; // Stop processing this paste event further
+                return;
             } else {
-                 console.log('No direct image data found, allowing Quill default paste.');
-                 // Let Quill's default paste (and our matchers) handle it
+                console.log('未检测到图片数据，交由 Quill 默认粘贴。');
             }
-
         } catch (err) {
-            console.error('Error reading clipboard:', err);
-             // Let Quill's default paste handle it if clipboard reading fails
+            console.error('读取剪贴板出错:', err);
         }
     });
 
-
-     // --- Helper: Base64 to Blob ---
+    // --- Base64 转 Blob 工具函数 ---
     function base64ToBlob(base64) {
         try {
             const parts = base64.split(';base64,');
@@ -555,172 +422,126 @@ if (supabase && editorContainer) {
             }
             return new Blob([uInt8Array], { type: contentType });
         } catch (e) {
-            console.error("Error converting Base64 to Blob:", e);
+            console.error("Base64 转 Blob 出错:", e);
             return null;
         }
     }
 
-     // --- Reusable Image Upload Logic ---
-     // Takes a File object, returns Promise<string | null> (the image URL or null on failure)
+    // --- 通用图片上传逻辑 ---
     async function uploadImageFile(file) {
-         if (!file || !supabase) {
-            console.log("No file provided or Supabase not ready for upload.");
+        if (!file || !supabase) {
+            console.log("未提供文件或 Supabase 未就绪，无法上传。");
             return null;
         }
-         statusElement.textContent = 'Uploading image...';
-         try {
+        statusElement.textContent = '正在上传图片...';
+        try {
             const fileName = `${Date.now()}-${file.name}`;
             const filePath = `public/${fileName}`;
             const bucketName = 'clipboard-media';
-
             const { error: uploadError } = await supabase.storage
                 .from(bucketName)
                 .upload(filePath, file, { cacheControl: '3600', upsert: false });
-
             if (uploadError) throw uploadError;
-
             const { data: urlData, error: urlError } = supabase.storage
                 .from(bucketName)
                 .getPublicUrl(filePath);
-
             if (urlError) throw urlError;
-            if (!urlData || !urlData.publicUrl) throw new Error("Failed to get public URL.");
-
+            if (!urlData || !urlData.publicUrl) throw new Error("获取图片外链失败。");
             const imageUrl = urlData.publicUrl;
-            console.log('Image uploaded successfully:', imageUrl);
-            statusElement.textContent = 'Image uploaded.';
+            console.log('图片上传成功:', imageUrl);
+            statusElement.textContent = '图片上传成功。';
             return imageUrl;
-
         } catch (error) {
-            console.error('Image upload failed:', error);
-            statusElement.textContent = `Image upload failed: ${error.message}`;
-            return null; // Indicate failure
+            console.error('图片上传失败:', error);
+            statusElement.textContent = `图片上传失败: ${error.message}`;
+            return null;
         }
     }
 
-     // --- Specific handler for pasted images ---
-     // Returns Promise resolving to URL or null
-     async function uploadPastedImage(file) {
-        // We can add specific logic here if needed, but for now, just reuse the main uploader
+    // --- 粘贴图片专用上传函数 ---
+    async function uploadPastedImage(file) {
         return await uploadImageFile(file);
-     }
-
-
-    // --- Quill Image Handler (for toolbar button) ---
-    async function imageHandler() {
-        const input = document.createElement('input');
-         input.setAttribute('type', 'file');
-        input.setAttribute('accept', 'image/*');
-        input.click();
-
-        input.onchange = async () => {
-             const file = input.files[0];
-             const originalRange = quillEditor.getSelection(true); // Save cursor position
-
-             const imageUrl = await uploadImageFile(file); // Use the reusable uploader
-
-             if (imageUrl) {
-                 // Insert image into Quill editor at the original cursor position
-                 quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
-                 quillEditor.setSelection(originalRange.index + 1); // Move cursor after image
-                 statusElement.textContent = 'Image uploaded and inserted.';
-             }
-             // Reset file input
-             input.value = '';
-         };
     }
 
-     // Bind the image handler to the Quill toolbar
+    // --- Quill 工具栏图片按钮处理 ---
+    async function imageHandler() {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+            const file = input.files[0];
+            const originalRange = quillEditor.getSelection(true);
+            const imageUrl = await uploadImageFile(file);
+            if (imageUrl) {
+                quillEditor.insertEmbed(originalRange.index, 'image', imageUrl);
+                quillEditor.setSelection(originalRange.index + 1);
+                statusElement.textContent = '图片上传并插入成功。';
+            }
+            input.value = '';
+        };
+    }
     quillEditor.getModule('toolbar').addHandler('image', imageHandler);
 
-
-    // 2. Add event listener for the "Add Clip" button
+    // 2. 绑定"添加"按钮事件
     addButton.addEventListener('click', addNewItem);
 
-    // Optional: Keyboard shortcut (e.g., Ctrl+Enter) - might conflict with Quill's defaults
-    // editorContainer.addEventListener('keydown', (event) => { ... });
-
-
-    // 3. Set up the realtime subscription
+    // 3. 设置实时订阅
     setupRealtimeSubscription();
 
-    // --- Event Listener using Delegation for Item Actions ---
+    // --- 列表区事件委托 ---
     clipboardListElement.addEventListener('click', async (event) => {
         const target = event.target;
         const itemDiv = target.closest('.clipboard-item');
-        if (!itemDiv) return; // Click wasn't inside a relevant item part
-
+        if (!itemDiv) return;
         const itemId = itemDiv.dataset.id;
-        const itemData = clipboardItems.find(i => i.id == itemId); // Find item data
+        const itemData = clipboardItems.find(i => i.id == itemId);
         if (!itemData) {
-             console.error(`Could not find data for item ID: ${itemId}`);
-             return;
-         }
-
-        // REMOVED: References to contentContainer, buttonContainer, showMoreButton as they are less needed here
-        // const contentContainer = itemDiv.querySelector('.item-content-container');
-        // const buttonContainer = itemDiv.querySelector('.item-buttons');
-        // const showMoreButton = itemDiv.querySelector('.show-more-button');
-
-
-        // --- Handle Button Clicks ---
-
-        // REMOVED: Edit Button handler
-        // if (target.classList.contains('edit-button')) { ... }
-
-        // REMOVED: Save Button handler
-        // else if (target.classList.contains('save-button')) { ... }
-
-        // REMOVED: Cancel Button handler
-        // else if (target.classList.contains('cancel-button')) { ... }
-
-        // Delete Button
-        if (target.classList.contains('delete-button')) { // Adjusted: Was 'else if'
-            target.disabled = true;
-            target.textContent = 'Deleting...';
-            await deleteItem(itemId);
-            // No need to manually re-enable, realtime DELETE handler will remove the item.
+            console.error(`未找到 ID 为 ${itemId} 的数据`);
+            return;
         }
-
-        // Copy Button
+        // 删除按钮
+        if (target.classList.contains('delete-button')) {
+            target.disabled = true;
+            target.textContent = '删除中...';
+            await deleteItem(itemId);
+        }
+        // 复制按钮
         else if (target.classList.contains('copy-button')) {
             let textToCopy = '';
-            const copyButton = target; // Reference the button
+            const copyButton = target;
             try {
                 let contentData = itemData.content;
                 if (typeof contentData === 'string') {
                     textToCopy = contentData;
                 } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
-                     // Create temp Quill to get text from Delta
-                     const tempDiv = document.createElement('div');
-                     const tempQuill = new Quill(tempDiv);
-                     tempQuill.setContents(contentData);
-                     textToCopy = tempQuill.getText().replace(/\n$/, ''); // Get text, trim trailing newline
+                    const tempDiv = document.createElement('div');
+                    const tempQuill = new Quill(tempDiv);
+                    tempQuill.setContents(contentData);
+                    textToCopy = tempQuill.getText().replace(/\n$/, '');
                 } else {
-                    textToCopy = '[Unsupported Content Format]';
+                    textToCopy = '[不支持的内容格式]';
                 }
-
                 await navigator.clipboard.writeText(textToCopy);
                 showToast('已复制到剪贴板', 'success');
-                copyButton.textContent = 'Copied!';
+                copyButton.textContent = '已复制!';
                 copyButton.disabled = true;
                 setTimeout(() => {
-                    copyButton.textContent = 'Copy';
+                    copyButton.textContent = '复制';
                     copyButton.disabled = false;
                 }, 1500);
             } catch (err) {
-                console.error('Failed to copy text: ', err);
+                console.error('复制失败: ', err);
                 showToast('复制失败', 'error');
-                copyButton.textContent = 'Error';
+                copyButton.textContent = '错误';
                 setTimeout(() => {
-                    copyButton.textContent = 'Copy';
+                    copyButton.textContent = '复制';
                 }, 1500);
             }
         }
-
-        // Show More Button
+        // 显示更多/收起按钮
         else if (target.classList.contains('show-more-button') || target.closest('.show-more-button')) {
-            const btn = target.closest('.show-more-button'); // Get the button element itself
+            const btn = target.closest('.show-more-button');
             itemDiv.classList.toggle('expanded');
             if (itemDiv.classList.contains('expanded')) {
                 btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -731,8 +552,8 @@ if (supabase && editorContainer) {
     });
 
 } else if (!editorContainer) {
-     console.error("Quill container '#editor-container' not found.");
-     statusElement.textContent = 'Error: Editor UI element missing!';
+    console.error("未找到 Quill 编辑器容器 '#editor-container'。");
+    statusElement.textContent = '错误: 缺少编辑器 UI 元素!';
 } else {
-    statusElement.textContent = 'Failed to connect to backend. Check console.';
+    statusElement.textContent = '无法连接后端，请查看控制台。';
 }
