@@ -161,13 +161,12 @@ h2 {
 /* --- Content Container (Handles collapsing) --- */
 .item-content-container {
     min-width: 0;
-    padding-right: 85px;
+    padding-right: 95px;
     max-height: 110px;
     overflow: hidden;
     position: relative;
     transition: max-height 0.35s ease-out;
-    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    overflow-wrap: break-word;
 }
 
 .clipboard-item.expanded .item-content-container {
@@ -176,6 +175,12 @@ h2 {
     mask-image: none;
     -webkit-mask-image: none;
     height: auto;
+}
+
+/* Apply mask only when needed and not expanded */
+.item-content-container.needs-mask:not(.expanded) {
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
 /* --- Content Styling (Inside Container) --- */
@@ -371,7 +376,7 @@ h2 {
         font-size: 0.8rem;
     }
     .item-content-container {
-        padding-right: 65px;
+        padding-right: 75px;
         max-height: 90px;
     }
     .show-more-button {
