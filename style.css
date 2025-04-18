@@ -135,53 +135,47 @@ h2 {
 
 /* --- Clipboard Item --- */
 .clipboard-item {
-    /* background: linear-gradient(120deg, #f8fafc 60%, #e0e7ef 100%); /* 移除或注释掉这个复杂渐变 */
-    background: #f8fafc; /* 改为使用单一的浅色背景，更统一 */
-    /* border: 1.5px solid #e0e7ef; /* 可以考虑将边框颜色改得更浅一些，与新背景更协调 */
-    border: 1.5px solid #e5e7eb; /* 例如使用更浅的灰色 */
+    background: var(--background-light);
+    border: 1.5px solid var(--border-light);
     border-radius: 10px;
-    padding: 18px; /* Consistent padding */
+    padding: 18px;
     margin-bottom: 18px;
     box-shadow: 0 2px 8px rgba(37,99,235,0.04);
-    position: relative; /* For absolute positioning of buttons */
+    position: relative;
     display: flex;
     flex-direction: column;
-    transition: box-shadow 0.2s, min-height 0.35s ease-out; /* Add min-height transition */
+    transition: box-shadow 0.2s, min-height 0.35s ease-out;
     box-sizing: border-box;
-    min-height: 146px; /* Ensure minimum height for collapsed state */
+    min-height: 146px;
 }
 
 .clipboard-item.expanded {
-    min-height: auto; /* Allow expanded item to grow naturally */
+    /* min-height: auto; 省略，默认就是auto */
 }
 
 .clipboard-item:hover {
     box-shadow: 0 6px 18px rgba(37,99,235,0.10);
-    border-color: #2563eb33;
+    border-color: var(--primary-light);
 }
 
 /* --- Content Container (Handles collapsing) --- */
 .item-content-container {
-    /* flex-grow: 1; /* Removed: Let height be determined by content */
-    min-width: 0; /* Prevents flex overflow */
-    padding-right: 85px; /* Space for absolute positioned buttons (保持不变) */
-    max-height: 110px; /* Initial collapsed height (保持不变) */
-    overflow: hidden; /* (保持不变) */
-    position: relative; /* Needed for ::before fade (现在不需要了，但保留也无妨) */
-    transition: max-height 0.35s ease-out; /* (保持不变) */
-
-    /* --- 添加下面的 mask-image 属性来实现内容底部渐隐 --- */
+    min-width: 0;
+    padding-right: 85px;
+    max-height: 110px;
+    overflow: hidden;
+    position: relative;
+    transition: max-height 0.35s ease-out;
     mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-    /* 为了浏览器兼容性，也添加 -webkit- 前缀 */
     -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
 .clipboard-item.expanded .item-content-container {
-    max-height: 5000px; /* Large value for expansion animation */
-    overflow: visible; /* Show all content */
+    max-height: 5000px;
+    overflow: visible;
     mask-image: none;
     -webkit-mask-image: none;
-    height: auto; /* Add this line to ensure height adjusts to content */
+    height: auto;
 }
 
 /* --- Content Styling (Inside Container) --- */
@@ -189,22 +183,22 @@ h2 {
 .clipboard-item .item-content-container .ql-container.ql-snow {
     white-space: pre-wrap;
     word-wrap: break-word;
-    margin: 0; /* Reset margin */
+    margin: 0;
     font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
     font-size: 1rem;
-    color: #222;
+    color: var(--text-main);
     background: transparent;
     border-radius: 4px;
     padding: 0;
     line-height: 1.6;
     overflow-x: auto;
-    border: none !important; /* Override Quill border */
-    min-height: 40px; /* Ensure minimum height */
+    border: none;
+    min-height: 40px;
 }
 
 .clipboard-item pre code {
-    color: #2563eb;
-    background: #e0e7ef;
+    color: var(--primary);
+    background: var(--border-light);
     border-radius: 4px;
     padding: 2px 4px;
     font-size: 0.98em;
@@ -288,56 +282,50 @@ h2 {
 
 /* --- Show More Button (Text Link Style) --- */
 .show-more-button {
-    position: relative; /* In normal document flow */
-    width: fit-content; /* Only take width needed for text */
-    margin: 10px auto 0 auto; /* Center horizontally, margin top */
-    padding: 4px 8px; /* Smaller padding */
+    position: relative;
+    width: fit-content;
+    margin: 10px auto 0 auto;
+    padding: 6px 16px;
     text-align: center;
-    background: transparent; /* No background */
-    border: none; /* No border */
-    color: #2563eb; /* Link color */
+    background: linear-gradient(90deg, var(--primary-light) 60%, var(--primary) 100%);
+    color: white;
     font-weight: 500;
     cursor: pointer;
-    font-size: 0.9rem; /* Slightly smaller */
-    transition: color 0.2s; /* Transition color on hover */
-    border-radius: 4px; /* Optional: slight rounding */
+    font-size: 0.9rem;
+    transition: background 0.2s, color 0.2s;
+    border-radius: 10px;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    margin: 6px auto 0 auto;
-    padding: 6px 12px;
-    background-color: rgba(37,99,235,0.05);  /* 轻微背景色 */
-    border-radius: 16px;                     /* 圆角更大 */
-    font-size: 0.85rem;  
-    /* display: none; /* Initially hidden, shown by JS if content overflows */
+    border: none;
 }
 
 .show-more-button:hover {
-    background-color: rgba(37,99,235,0.1);
-    color: #1d4ed8; /* Darker blue on hover */
-    text-decoration: underline; /* Add underline on hover */
+    background: linear-gradient(90deg, var(--primary-dark) 60%, var(--primary-light) 100%);
+    color: #fff;
+    text-decoration: underline;
 }
 
 .show-more-button svg {
-    display: inline-block; /* Keep icon inline */
+    display: inline-block;
     vertical-align: middle;
     width: 16px;
     height: 16px;
-    stroke: #2563eb;
+    stroke: var(--primary);
     stroke-width: 2;
 }
 
 /* Edit mode adjustments */
 .clipboard-item .ql-toolbar.ql-snow {
-    padding: 4px 8px !important;
-    border-bottom: 1px solid #ccc !important;
+    padding: 4px 8px;
+    border-bottom: 1px solid #ccc;
 }
 .clipboard-item .ql-container.ql-snow {
      min-height: 80px;
-     height: auto !important;
-     max-height: none !important; /* Ensure editor can grow */
+     height: auto;
+     max-height: none;
 }
 
 /* --- Responsive Styles --- */
@@ -368,29 +356,30 @@ h2 {
     #addButton {
         padding: 12px 0;
     }
-    /* Adjust item padding and button positions for mobile */
     .clipboard-item {
-        padding: 15px;
+        padding: 12px;
     }
     .clipboard-item .item-buttons {
-        top: 10px;
-        right: 10px;
-        gap: 5px;
+        top: 8px;
+        right: 8px;
+        gap: 4px;
     }
     .clipboard-item .item-buttons button {
-        min-width: 60px;
-        width: 60px;
-        padding: 5px 0;
-        font-size: 0.85rem;
+        min-width: 54px;
+        width: 54px;
+        padding: 4px 0;
+        font-size: 0.8rem;
     }
     .item-content-container {
-        padding-right: 75px; /* Adjust padding for mobile buttons */
-        max-height: 100px; /* Adjust mobile collapsed height */
+        padding-right: 65px;
+        max-height: 90px;
     }
     .show-more-button {
-        width: 100%; /* Ensure full width on mobile */
+        width: 100%;
         margin-left: 0;
         margin-right: 0;
+        font-size: 0.85rem;
+        padding: 6px 8px;
     }
     #editor-container {
         height: 110px;
