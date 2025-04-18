@@ -155,7 +155,12 @@ function renderClipboardList(items) {
             const showMoreBtn = renderedItemDiv.querySelector('.show-more-button');
             const threshold = 110;
             const isOverflowing = contentContainer.scrollHeight > threshold + 2;
+
+            // Toggle show more button visibility
             showMoreBtn.style.display = isOverflowing ? 'block' : 'none';
+
+            // Toggle the needs-mask class based on overflow
+            contentContainer.classList.toggle('needs-mask', isOverflowing);
         });
     }, 0);
     statusElement.textContent = `就绪，已加载 ${items.length} 条内容。`;
