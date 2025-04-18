@@ -70,44 +70,46 @@ if (supabaseUrl && supabaseAnonKey) {
 let clipboardItems = []; // 当前剪贴板项目列表
 
 // 渲染单条内容（只读视图，避免为每条都创建 Quill 实例）
+// 优化 renderItemContent 函数
 function renderItemContent(container, contentData, itemId) {
     container.innerHTML = '';
     try {
         if (typeof contentData === 'string') {
-            // 纯文本内容
-            const pre = document.createElement('pre');
-            pre.textContent = contentData;
-            container.appendChild(pre);
-        } else if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
-            // Delta 内容，支持图片和文本
+            // 纯文本内容 - 简化处理
+            container.textContent = contentData;
+            return;
+        }
+        
+        if (contentData && typeof contentData === 'object' && Array.isArray(contentData.ops)) {
+            // 创建文档片段提高性能
+            const fragment = document.createDocumentFragment();
+            
             contentData.ops.forEach(op => {
                 if (op.insert && typeof op.insert === 'object' && op.insert.image) {
-                    // 图片内容
+                    // 图片元素
                     const img = document.createElement('img');
                     img.src = op.insert.image;
-                    img.style.maxWidth = '100%';
-                    img.style.display = 'block';
-                    img.style.margin = '8px 0';
-                    container.appendChild(img);
+                    img.alt = "粘贴的图片";
+                    img.loading = "lazy"; // 添加懒加载
+                    fragment.appendChild(img);
                 } else if (typeof op.insert === 'string') {
-                    // 文本内容
+                    // 文本内容 - 保留换行
+                    const text = op.insert.replace(/\n/g, '<br>');
                     const span = document.createElement('span');
-                    // 保留换行
-                    span.textContent = op.insert;
-                    container.appendChild(span);
+                    span.innerHTML = text;
+                    fragment.appendChild(span);
                 }
             });
-        } else {
-            console.error(`项目 ${itemId}: 内容格式未知`, contentData);
-            const pre = document.createElement('pre');
-            pre.textContent = '[错误: 内容格式未知]';
-            container.appendChild(pre);
+            
+            container.appendChild(fragment);
+            return;
         }
+        
+        // 处理未知格式
+        container.textContent = '[内容格式未知]';
     } catch (e) {
-        console.error(`渲染项目 ${itemId} 内容出错:`, e, contentData);
-        const pre = document.createElement('pre');
-        pre.textContent = `[渲染内容出错: ${e.message}]`;
-        container.appendChild(pre);
+        console.error(`渲染项目 ${itemId} 内容出错:`, e);
+        container.textContent = `[渲染出错: ${e.message}]`;
     }
 }
 
@@ -554,9 +556,9 @@ if (supabase && editorContainer) {
             const btn = target.closest('.show-more-button');
             itemDiv.classList.toggle('expanded');
             if (itemDiv.classList.contains('expanded')) {
-                btn.innerHTML = '收起 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 12l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                btn.innerHTML = `收起 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 15l-6-6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
             } else {
-                btn.innerHTML = '显示更多 <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                btn.innerHTML = `显示更多 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
             }
         }
     });
